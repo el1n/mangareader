@@ -1,7 +1,9 @@
 <?
+	define(BOOKSHELF,"../bookshelf");
+
 	switch($_GET["op"]){
 		case "i":
-			$dir = "./books".getenv("PATH_INFO");
+			$dir = BOOKSHELF.getenv("PATH_INFO");
 			if(is_dir($dir)){
 				$r = array(
 					"c" =>200,
@@ -17,7 +19,7 @@
 			exit(0);
 			break;
 		case "m":
-			$file = "./books".getenv("PATH_INFO");
+			$file = BOOKSHELF.getenv("PATH_INFO");
 #			if(is_dir($file)){
 #				$file = $file."/".reset(preg_grep("/\.(gif|jpe?g|png)$/i",scandir($file)));
 #			}
@@ -37,8 +39,31 @@
 			echo($r);
 			exit(0);
 			break;
+		case "g":
+			$file = BOOKSHELF.getenv("PATH_INFO");
+			if(is_file($file)){
+				$r = new Imagick($file);
+
+				if($_GET["s"])
+					if($_GET["p"] == 0){
+						$r->cropImage($r->getImageWidth() / 2,$r->getImageHeight(),$r->getImageWidth() / 2,0);
+					}else if($_GET["p"] == 1){
+						$r->cropImage($r->getImageWidth() / 2,$r->getImageHeight(),0,0);
+					}
+				if($_GET["c"])
+					$r->thumbnailImage($_GET["w"] / 2,$_GET["h"] / 2,1);
+					$r->setImageFormat("jpeg");
+					$r->setImageCompressionQuality(80);
+			}else{
+				$r = new Imagick();
+				$r->newImage(1,1,"#000000");
+			}
+			header("Content-Type: image/jpeg");
+			echo($r);
+			exit(0);
+			break;
 		case "a":
-			echo(json_encode(array_values(preg_grep("/^(?!\\.)/",scandir("./books")))));
+			echo(json_encode(array_values(preg_grep("/^(?!\\.)/",scandir(BOOKSHELF)))));
 			exit;
 			break;
 		case "b":
@@ -87,7 +112,7 @@
 manga = ""
 volume = ""
 index = 0
-b = F_OPTION_SPLIT
+b = F_OPTION_COMPRESS
 
 @draw = (a = C_MODE_UNKNOWN) ->
 	@mode = a
@@ -95,28 +120,61 @@ b = F_OPTION_SPLIT
 	switch mode
 		when C_MODE_UNKNOWN
 			if navigator.userAgent.match(/Android.*Mobile|iPhone/)
-				draw(C_MODE_PHONE)
+				if $(window).width() < $(window).height()
+					draw(C_MODE_PHONE|C_MODE_VERTICAL)
+				else
+					draw(C_MODE_PHONE|C_MODE_HORIZON)
 			else if navigator.userAgent.match(/Android|iPad/)
-				draw(C_MODE_TABLET)
+				if $(window).width() < $(window).height()
+					draw(C_MODE_TABLET|C_MODE_VERTICAL)
+				else
+					draw(C_MODE_TABLET|C_MODE_HORIZON)
 			else
 				draw(C_MODE_PC)
+
 		when C_MODE_PC
 			$("#MODE_PC")[0].disabled = 0
-			$("#MODE_PHONE")[0].disabled = 1
-			$("#MODE_TABLET")[0].disabled = 1
-		when C_MODE_PHONE
+			$("#MODE_PHONE_VERTICAL")[0].disabled = 1
+			$("#MODE_PHONE_HORIZON")[0].disabled = 1
+			$("#MODE_TABLET_VERTICAL")[0].disabled = 1
+			$("#MODE_TABLET_HORIZON")[0].disabled = 1
+		when C_MODE_PHONE|C_MODE_VERTICAL
 			$("#MODE_PC")[0].disabled = 1
-			$("#MODE_PHONE")[0].disabled = 0
-			$("#MODE_TABLET")[0].disabled = 1
-		when C_MODE_TABLET
+			$("#MODE_PHONE_VERTICAL")[0].disabled = 0
+			$("#MODE_PHONE_HORIZON")[0].disabled = 1
+			$("#MODE_TABLET_VERTICAL")[0].disabled = 1
+			$("#MODE_TABLET_HORIZON")[0].disabled = 1
+		when C_MODE_PHONE|C_MODE_HORIZON
 			$("#MODE_PC")[0].disabled = 1
-			$("#MODE_PHONE")[0].disabled = 1
-			$("#MODE_TABLET")[0].disabled = 0
+			$("#MODE_PHONE_VERTICAL")[0].disabled = 1
+			$("#MODE_PHONE_HORIZON")[0].disabled = 0
+			$("#MODE_TABLET_VERTICAL")[0].disabled = 1
+			$("#MODE_TABLET_HORIZON")[0].disabled = 1
+		when C_MODE_TABLET|C_MODE_VERTICAL
+			$("#MODE_PC")[0].disabled = 1
+			$("#MODE_PHONE_VERTICAL")[0].disabled = 1
+			$("#MODE_PHONE_HORIZON")[0].disabled = 1
+			$("#MODE_TABLET_VERTICAL")[0].disabled = 0
+			$("#MODE_TABLET_HORIZON")[0].disabled = 1
+		when C_MODE_TABLET|C_MODE_HORIZON
+			$("#MODE_PC")[0].disabled = 1
+			$("#MODE_PHONE_VERTICAL")[0].disabled = 1
+			$("#MODE_PHONE_HORIZON")[0].disabled = 1
+			$("#MODE_TABLET_VERTICAL")[0].disabled = 1
+			$("#MODE_TABLET_HORIZON")[0].disabled = 0
 		else
 			console.log("! Unknown mode #{mode}.")
 	console.log("? mode=#{mode}")
 
 $(window).load(() ->
+	$(@).on("orientationchange",() ->
+		$("body").hide().css("opacity",0);
+		draw(C_MODE_UNKNOWN)
+		$("body")
+		.show()
+		.animate({"opacity":1.000},333,"easeOutCubic")
+	)
+
 	$("#header").html(location.hostname)
 	$("img.thumbnail").each(() ->
 		@src = $("<canvas width=1 height=1 />")[0].toDataURL()
@@ -180,7 +238,7 @@ $(window).load(() ->
 					.find(".author span").html(a[1]).end()
 					.click(() -> load(manga = a[0]))
 				)
-			)(_.match("^([^\x00-\x20\x7F]+?) (.+?)$"))
+			)(_.match("^([^\x00-\x20\x7F]+?|Magica Quartet) (.+?)$"))
 	)
 )
 
@@ -201,7 +259,7 @@ $(window).load(() ->
 			)(_)
 	)
 
-	if mode & C_MODE_PHONE
+	if mode & (C_MODE_PHONE|C_MODE_VERTICAL) == C_MODE_PHONE|C_MODE_VERTICAL
 		$("#main").animate({"left":-$("#menu").width()},333,"easeOutCubic")
 		$("#navi .a").show().animate({"opacity":1.000},333,"easeOutCubic")
 
@@ -222,7 +280,7 @@ $(window).load(() ->
 	preference.close()
 	$("#frame")
 	.show()
-	.animate({"opacity":0.900},333,"easeOutCubic")
+	.animate({"opacity":1.000},333,"easeOutCubic")
 	.focus()
 
 @close = () ->
@@ -243,7 +301,7 @@ $(window).load(() ->
 			.clone(1)
 			.prop("id",i)
 			.prop("class","")
-			.css("background-image","url(\"/books/#{encodeURIComponent(manga)}/#{encodeURIComponent(volume)}/#{encodeURIComponent(@list[i])}?s=#{b & F_OPTION_SPLIT}\")")
+			.css("background-image","url(\"<?=getenv("SCRIPT_NAME")?>/#{encodeURIComponent(manga)}/#{encodeURIComponent(volume)}/#{encodeURIComponent(@list[parseInt(i / (!!(b & F_OPTION_SPLIT) + 1))])}?op=g&s=#{b & F_OPTION_SPLIT}&p=#{i % 2}&w=#{document.body.clientWidth}&h=#{document.body.clientHeight}&c=#{b & F_OPTION_COMPRESS}\")")
 		)
 		console.log("? Image #{i} maked.")
 	return $("##{i}")
@@ -538,7 +596,7 @@ body {
 	height: 40px;
 }
 </style>
-<style id="MODE_PHONE" type="text/css">
+<style id="MODE_PHONE_VERTICAL" type="text/css">
 body {
 	font-size: 32pt;
 }
@@ -578,7 +636,51 @@ body {
 	width: 6em;
 }
 </style>
-<style id="MODE_TABLET" type="text/css">
+<style id="MODE_PHONE_HORIZON" type="text/css">
+body {
+	font-size: 16pt;
+}
+
+#navi,#conf {
+	height: 12.5%;
+}
+
+#main {
+	width: 100%;
+	height: 75%;
+}
+
+#menu {
+	width: 50%;
+}
+
+#book {
+	width: 50%;
+}
+
+.book {
+	height: 25%;
+}
+
+.volume {
+	margin: 1%;
+	width: 31%;
+}
+
+#preference  {
+	width: 50%;
+	height: 75%;
+}
+
+#preference .field {
+	height: 15%;
+}
+
+#preference input {
+	width: 4em;
+}
+</style>
+<style id="MODE_TABLET_VERTICAL" type="text/css">
 body {
 	font-size: 16pt;
 }
@@ -619,6 +721,8 @@ body {
 #preference .field {
 	height: 7.5%;
 }
+</style>
+<style id="MODE_TABLET_HORIZON" type="text/css">
 </style>
 </head>
 <body>
