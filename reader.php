@@ -98,21 +98,24 @@
 <script type="text/javascript" charset="UTF-8">
 </script>
 <script type="text/coffeescript">
+@C_MODE_MASK = 0x0FFF
 @C_MODE_UNKNOWN = 0x0000
 @C_MODE_PC = 0x0001
-@C_MODE_PHONE = 0x0002
-@C_MODE_TABLET = 0x0004
+@C_MODE_NOTEBOOK = 0x0002
+@C_MODE_PHONE = 0x0004
+@C_MODE_TABLET = 0x0008
 @C_MODE_VERTICAL = 0x0000
-@C_MODE_HORIZON = 0x0100
+@C_MODE_HORIZON = 0x0200
 @C_CACHE_AHEAD = 3
 @C_CACHE_BEHIND = 1
-@F_OPTION_COMPRESS = 0x00010000
-@F_OPTION_SPLIT = 0x00020000
+@F_OPTION_THUMBNAIL = 0x00010000
+@F_OPTION_COMPRESS = 0x00020000
+@F_OPTION_SPLIT = 0x00040000
 
+b = 0
 manga = ""
 volume = ""
 index = 0
-b = F_OPTION_COMPRESS
 
 @draw = (a = C_MODE_UNKNOWN) ->
 	@mode = a
@@ -132,7 +135,13 @@ b = F_OPTION_COMPRESS
 			else
 				draw(C_MODE_PC)
 
-		when C_MODE_PC
+		when C_MODE_PC|C_MODE_VERTICAL,C_MODE_PC|C_MODE_HORIZON
+			$("#MODE_PC")[0].disabled = 0
+			$("#MODE_PHONE_VERTICAL")[0].disabled = 1
+			$("#MODE_PHONE_HORIZON")[0].disabled = 1
+			$("#MODE_TABLET_VERTICAL")[0].disabled = 1
+			$("#MODE_TABLET_HORIZON")[0].disabled = 1
+		when C_MODE_NOTEBOOK|C_MODE_VERTICAL,C_MODE_NOTEBOOK|C_MODE_HORIZON
 			$("#MODE_PC")[0].disabled = 0
 			$("#MODE_PHONE_VERTICAL")[0].disabled = 1
 			$("#MODE_PHONE_HORIZON")[0].disabled = 1
@@ -167,6 +176,13 @@ b = F_OPTION_COMPRESS
 	console.log("? mode=#{mode}")
 
 $(window).load(() ->
+	if m = location.search.match("b=(\\d+)")
+		b = m[1]
+		$("#preference input").each((a) ->
+			$(@).prop("checked",b & $(@).val())
+		)
+		console.log("bit found #{m[1]}")
+
 	$(@).on("orientationchange",() ->
 		$("body").hide().css("opacity",0);
 		draw(C_MODE_UNKNOWN)
@@ -224,6 +240,25 @@ $(window).load(() ->
 	#.prop("tabindex",1)
 	.blur(() -> closepreference())
 
+	$("#preference .field input")
+	.click(() ->
+		b = 0
+		$("#preference input:checked").each((a) ->
+			b |= $(@).val()
+		)
+		history.replaceState(null,null,"#{location.protocol}//#{location.hostname}#{location.pathname}?b=#{b}")
+		console.log(b)
+		console.log(2)
+	)
+
+	$("#preference .field").append(
+		$("<div>")
+		.addClass("input")
+		.click(() ->
+			$(@).parent().find("input").click()
+		)
+	)
+
 	draw()
 
 	$.getJSON("<?=getenv("SCRIPT_NAME")?>/?op=i",(a) ->
@@ -240,6 +275,13 @@ $(window).load(() ->
 				)
 			)(_.match("^([^\x00-\x20\x7F]+?|Magica Quartet) (.+?)$"))
 	)
+
+	m = "<?=getenv("PATH_INFO")?>".replace(/^\//,"").split("/")
+	i = parseInt(location.hash.replace(/^#/,""))
+	if m[0]?.length > 0
+		load(manga = m[0])
+	if m[1]?.length > 0
+		read(null,m[1],i)
 )
 
 @load = (c) ->
@@ -259,22 +301,25 @@ $(window).load(() ->
 			)(_)
 	)
 
-	if mode & (C_MODE_PHONE|C_MODE_VERTICAL) == C_MODE_PHONE|C_MODE_VERTICAL
+	if (mode & C_MODE_MASK) == (C_MODE_PHONE|C_MODE_VERTICAL)
 		$("#main").animate({"left":-$("#menu").width()},333,"easeOutCubic")
 		$("#navi .a").show().animate({"opacity":1.000},333,"easeOutCubic")
+
+	history.replaceState(null,null,"#{location.protocol}//#{location.hostname}/#{c}/#{location.search}")
 
 @back = () ->
 	$("#main").animate({"left":0},333,"easeOutCubic")
 	$("#navi .a").animate({"opacity":0.000},333,"easeOutCubic",-> $(@).hide())
 
-@read = (c = manga,n) ->
+@read = (c = manga,n,i = 0) ->
 	manga = c
 	volume = n
 	$.getJSON("<?=getenv("SCRIPT_NAME")?>/#{encodeURIComponent(c)}/#{n}/?op=i",(a) ->
 		window.list = a.value
 		open()
-		jump(0);
+		jump(i);
 	)
+	history.replaceState(null,null,"#{location.protocol}//#{location.hostname}/#{c}/#{n}/#{location.search}##{i}")
 
 @open = () ->
 	preference.close()
@@ -331,6 +376,8 @@ $(window).load(() ->
 		index = i
 	else
 		close()
+
+	history.replaceState(null,null,"#{location.protocol}//#{location.hostname}/#{manga}/#{volume}/#{location.search}##{index}")
 	1
 
 @preference = new class
@@ -545,6 +592,16 @@ html, body {
 	vertical-align: middle;
 	position: relative;
 }
+
+#preference .input {
+	width: 100%;
+	height: 100%;
+	left: 0;
+	top: 0;
+	position: relative;
+	opacity: 0%;
+}
+
 </style>
 <style id="MODE_PC" type="text/css">
 body {
@@ -754,7 +811,7 @@ body {
 			</div>
 			<div class="value">
 				<label>
-					<input type="radio" name="1">
+					<input type="radio" name="255" value="1">
 				</label>
 			</div>
 		</div>
@@ -766,7 +823,7 @@ body {
 			</div>
 			<div class="value">
 				<label>
-					<input type="radio" name="1">
+					<input type="radio" name="255" value="2">
 				</label>
 			</div>
 		</div>
@@ -778,7 +835,7 @@ body {
 			</div>
 			<div class="value">
 				<label>
-					<input type="radio" name="1">
+					<input type="radio" name="255" value="4">
 				</label>
 			</div>
 		</div>
@@ -790,7 +847,18 @@ body {
 			</div>
 			<div class="value">
 				<label>
-					<input type="radio" name="1">
+					<input type="radio" name="255" value="8">
+				</label>
+			</div>
+		</div>
+		<div class="field">
+			<div class="label valign">
+			</div>
+			<div class="label valign">
+			</div>
+			<div class="value">
+				<label>
+					<input type="checkbox" name="768" value="512">
 				</label>
 			</div>
 		</div>
@@ -802,7 +870,7 @@ body {
 			</div>
 			<div class="value">
 				<label>
-					<input type="checkbox" name="2">
+					<input type="checkbox" name="65536" value="65536">
 				</label>
 			</div>
 		</div>
@@ -814,7 +882,7 @@ body {
 			</div>
 			<div class="value">
 				<label>
-					<input type="checkbox" name="3">
+					<input type="checkbox" name="131072" value="131072">
 				</label>
 			</div>
 		</div>
@@ -826,7 +894,7 @@ body {
 			</div>
 			<div class="value">
 				<label>
-					<input type="checkbox" name="4">
+					<input type="checkbox" name="262144" value="262144">
 				</label>
 			</div>
 		</div>
