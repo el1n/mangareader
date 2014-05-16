@@ -1,13 +1,19 @@
 <?
 	define(BOOKSHELF,"../bookshelf");
 
+	$memcached = new Memcached();
+	$memcached->setOption(Memcached::OPT_BINARY_PROTOCOL,1);
+	$memcached->setOption(Memcached::OPT_COMPRESSION,1);
+	$memcached->setOption(Memcached::OPT_PREFIX_KEY,getenv("SCRIPT_FILENAME"));
+	$memcached->addServer("127.0.0.1",11211);
+
 	switch($_GET["op"]){
 		case "i":
 			$dir = BOOKSHELF.getenv("PATH_INFO");
 			if(is_dir($dir)){
 				$r = array(
 					"c" =>200,
-					"value" =>array_values(preg_grep("/^(?!\\.).*(?<!\.zip)$/",scandir($dir)))
+					"value" =>array_values(preg_grep("/^(?!\\.).*?(?<!\.zip)$/",scandir($dir)))
 				);
 			}else{
 				$r = array(
@@ -24,17 +30,21 @@
 #				$file = $file."/".reset(preg_grep("/\.(gif|jpe?g|png)$/i",scandir($file)));
 #			}
 			while(is_dir($file)){
-				$file = $file."/".reset(preg_grep("/(^(?!\\.)|\.(gif|jpe?g|png)$)/i",scandir($file)));
+				#$file = $file."/".reset(preg_grep("/(^(?!\\.)|\.(gif|jpe?g|png)$)/i",scandir($file)));
+				$file = $file."/".reset(preg_grep("/^(?!\\.).*?(?<!\.db)(?<!\.zip)$/i",scandir($file)));
 			}
-			if(is_file($file)){
-				$r = new Imagick($file);
-			}else{
+			if(!$r = $memcached->get($file)){
 				$r = new Imagick();
-				$r->newImage(1,1,"#000000");
+				if(!is_file($file) || !$r->readImage($file)){
+					$r->newImage(1,1,"#000000");
+				}
+				$r->thumbnailImage(100,100,1);
+				$r->setImageFormat("jpeg");
+				$r->setImageCompressionQuality(80);
+
+				$memcached->set($file,$r->getImageBlob());
+				error_log($memcached->getResultCode());
 			}
-			$r->thumbnailImage(100,100,1);
-			$r->setImageFormat("jpeg");
-			$r->setImageCompressionQuality(80);
 			header("Content-Type: image/jpeg");
 			echo($r);
 			exit(0);
