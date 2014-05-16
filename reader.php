@@ -7,7 +7,7 @@
 			if(is_dir($dir)){
 				$r = array(
 					"c" =>200,
-					"value" =>array_values(preg_grep("/^(?!\\.)/",scandir($dir)))
+					"value" =>array_values(preg_grep("/^(?!\\.).*(?<!\.zip)$/",scandir($dir)))
 				);
 			}else{
 				$r = array(
