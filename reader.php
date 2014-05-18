@@ -104,6 +104,7 @@
 <script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js" type="text/javascript"></script>
 <script src="//cdnjs.cloudflare.com/ajax/libs/jquery-easing/1.3/jquery.easing.min.js" type="text/javascript"></script>
 <script src="http://www.netcu.de/templates/netcu/js/jquery.touchwipe.min.js" type="text/javascript"></script>
+<script src="/jquery.touchy.min.js" type="text/javascript"></script>
 <script src="http://coffeescript.org/extras/coffee-script.js" type="text/javascript"></script>
 <script type="text/javascript" charset="UTF-8">
 </script>
@@ -206,14 +207,21 @@ $(window).load(() ->
 		@src = $("<canvas width=1 height=1 />")[0].toDataURL()
 	)
 
+	id = 0;
+
 	$("#frame")
 	.prop("tabindex",0)
-	.click(() -> jump(index + 1))
-	.bind("mousedown",(a) ->
+	.bind("click",-> jump(index + 1))
+	.bind("contextmenu",-> jump(index - 1) && false)
+	.bind("touchstart",(a) ->
 		x = a.clientX
 		y = a.clientY
+
+		id = setTimeout("close()",1000)
 	)
-	.bind("contextmenu",() -> jump(index - 1) && false)
+	.bind("touchend",(a) ->
+		clearTimeout(id)
+	)
 	.bind("mousewheel",(a) ->
 		if a.originalEvent.wheelDelta < 0
 			jump(index + 1)
@@ -233,7 +241,7 @@ $(window).load(() ->
 			when 0x27,0x21,0x6d,0x44,0x53
 				jump(index - 1)
 			when 0x23
-				jump(ls.length - 1)
+				jump(list.length - 1)
 			when 0x24
 				jump(0)
 			when 0x1b
@@ -241,6 +249,15 @@ $(window).load(() ->
 			else
 				console.log("keyCode 0x#{a.keyCode.toString(16)} (#{a.keyCode})")
 	)
+#	.bind("touchy-swipe",(b,c,a) ->
+#		switch a.direction
+#			when "left"
+#				jump(index - 1)
+#			when "right"
+#				jump(index + 1)
+#			else
+#				alert(a)
+#	)
 	.touchwipe(
 		wipeLeft:() -> jump(index - 1)
 		wipeRight:() -> jump(index + 1)
@@ -283,7 +300,7 @@ $(window).load(() ->
 					.find(".author span").html(a[1]).end()
 					.click(() -> load(manga = a[0]))
 				)
-			)(_.match("^([^\x00-\x20\x7F]+?|Magica Quartet) (.+?)$"))
+			)(_.match("^((?:Magica Quartet|[^\x00-\x20\x7F])+?) (.+?)$"))
 	)
 
 	m = "<?=getenv("PATH_INFO")?>".replace(/^\//,"").split("/")
@@ -404,6 +421,14 @@ $(window).load(() ->
 			@open()
 		else
 			@close()
+
+@grep = () ->
+	$(".book").each(() ->
+		if $(@).find("span").html().indexOf($(".grep input").val()) != -1
+			$(@).show()
+		else
+			$(@).hide()
+	)
 </script>
 <style id="common" type="text/css">
 .valign {
@@ -471,6 +496,24 @@ html, body {
 	z-index: -1;
 }
 
+.grep {
+	text-align: center;
+	margin: 0.5em;
+	background-color: #fff4f8;
+	border: 1px #ffccd4 solid;
+}
+
+.grep label {
+	width: 100%;
+	padding: 0.5em;
+	box-sizing: border-box;
+	margin-right: 0;
+}
+
+.grep input {
+	width: 80%;
+}
+
 .book {
 	margin: 0.5em;
 	border: 1px #ffccd4 solid;
@@ -478,6 +521,7 @@ html, body {
 
 .book .thumbnail {
 	float:left;
+	margin-right: 0.5em;
 	//background-color: #fff4f8;
 }
 
@@ -502,7 +546,7 @@ html, body {
 .book .title span, .book .author span {
 }
 .book .desc {
-	padding-left: 0.5em;
+	//padding-left: 0em;
 }
 
 
@@ -539,11 +583,8 @@ html, body {
 	width: 100%;
 	height: 100%;
 	background-color: #1f1f1f;
-	z-index: 1;
 	opacity: 0;
-}
-#image {
-	z-index: 2;
+	z-index: 1;
 }
 
 #image img {
@@ -615,7 +656,7 @@ html, body {
 </style>
 <style id="MODE_PC" type="text/css">
 body {
-	font-size: 12pt;
+	font-size: 10pt;
 }
 
 #navi,#conf {
@@ -634,11 +675,11 @@ body {
 }
 
 #menu {
-	width: 240px;
+	width: 320px;
 }
 
 #book {
-	width: calc(100% - 240px);
+	width: calc(100% - 320px);
 }
 
 .book {
@@ -665,7 +706,7 @@ body {
 </style>
 <style id="MODE_PHONE_VERTICAL" type="text/css">
 body {
-	font-size: 32pt;
+	font-size: 24pt;
 }
 
 #navi,#conf {
@@ -749,7 +790,7 @@ body {
 </style>
 <style id="MODE_TABLET_VERTICAL" type="text/css">
 body {
-	font-size: 16pt;
+	font-size: 12pt;
 }
 
 #navi,#conf {
@@ -762,10 +803,10 @@ body {
 }
 
 #menu {
-	width: 33%;
+	width: 40%;
 }
 #book {
-	width: 67%;
+	width: 60%;
 }
 
 .book {
@@ -908,9 +949,27 @@ body {
 				</label>
 			</div>
 		</div>
+		<div class="cloak">
+			<div class="label valign">
+				Horizontal Split
+			</div>
+			<div class="label valign">
+			</div>
+			<div class="value">
+				<label>
+					<input type="checkbox" name="262144" value="262144">
+				</label>
+			</div>
+		</div>
 	</div>
 <div id="main">
 	<div id="menu">
+		<div class="grep">
+			<label>
+				Grep:
+				<input type="text" onChange="grep()" onKeyUp="grep()">
+			</label>
+		</div>
 		<div class="cloak">
 			<img class="thumbnail">
 			<div class="desc">
