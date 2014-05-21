@@ -1,5 +1,5 @@
 <?
-	define(BOOKSHELF,"../bookshelf");
+	define("BOOKSHELF","../bookshelf");
 
 	$memcached = new Memcached();
 	$memcached->setOption(Memcached::OPT_BINARY_PROTOCOL,1);
@@ -43,7 +43,6 @@
 				$r->setImageCompressionQuality(80);
 
 				$memcached->set($file,$r->getImageBlob());
-				error_log($memcached->getResultCode());
 			}
 			header("Content-Type: image/jpeg");
 			echo($r);
@@ -104,7 +103,6 @@
 <script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js" type="text/javascript"></script>
 <script src="//cdnjs.cloudflare.com/ajax/libs/jquery-easing/1.3/jquery.easing.min.js" type="text/javascript"></script>
 <script src="http://www.netcu.de/templates/netcu/js/jquery.touchwipe.min.js" type="text/javascript"></script>
-<script src="/jquery.touchy.min.js" type="text/javascript"></script>
 <script src="http://coffeescript.org/extras/coffee-script.js" type="text/javascript"></script>
 <script type="text/javascript" charset="UTF-8">
 </script>
@@ -122,16 +120,15 @@
 @F_OPTION_THUMBNAIL = 0x00010000
 @F_OPTION_COMPRESS = 0x00020000
 @F_OPTION_SPLIT = 0x00040000
+@F_OPTION_SEQUENTIAL = 0x00080000
 
 b = 0
 manga = ""
 volume = ""
 index = 0
 
-@draw = (a = C_MODE_UNKNOWN) ->
-	@mode = a
-
-	switch mode
+@draw = (@mode = @mode) ->
+	switch mode & C_MODE_MASK
 		when C_MODE_UNKNOWN
 			if navigator.userAgent.match(/Android.*Mobile|iPhone/)
 				if $(window).width() < $(window).height()
@@ -187,19 +184,12 @@ index = 0
 	console.log("? mode=#{mode}")
 
 $(window).load(() ->
-	if m = location.search.match("b=(\\d+)")
-		b = m[1]
-		$("#preference input").each((a) ->
-			$(@).prop("checked",b & $(@).val())
-		)
-		console.log("bit found #{m[1]}")
-
 	$(@).on("orientationchange",() ->
 		$("body").hide().css("opacity",0);
 		draw(C_MODE_UNKNOWN)
 		$("body")
 		.show()
-		.animate({"opacity":1.000},333,"easeOutCubic")
+		.animate({"opacity":1.000},500,"easeOutCubic")
 	)
 
 	$("#header").html(location.hostname)
@@ -213,11 +203,14 @@ $(window).load(() ->
 	.prop("tabindex",0)
 	.bind("click",-> jump(index + 1))
 	.bind("contextmenu",-> jump(index - 1) && false)
+	.bind("mousedown",() -> $(@).trigger("touchstart"))
+	.bind("mouseup",() -> $(@).trigger("touchend"))
 	.bind("touchstart",(a) ->
 		x = a.clientX
 		y = a.clientY
 
-		id = setTimeout("close()",1000)
+		id = setTimeout("close(1)",500)
+		false
 	)
 	.bind("touchend",(a) ->
 		clearTimeout(id)
@@ -245,19 +238,10 @@ $(window).load(() ->
 			when 0x24
 				jump(0)
 			when 0x1b
-				close()
+				close(1)
 			else
 				console.log("keyCode 0x#{a.keyCode.toString(16)} (#{a.keyCode})")
 	)
-#	.bind("touchy-swipe",(b,c,a) ->
-#		switch a.direction
-#			when "left"
-#				jump(index - 1)
-#			when "right"
-#				jump(index + 1)
-#			else
-#				alert(a)
-#	)
 	.touchwipe(
 		wipeLeft:() -> jump(index - 1)
 		wipeRight:() -> jump(index + 1)
@@ -266,25 +250,6 @@ $(window).load(() ->
 	$("#preference")
 	#.prop("tabindex",1)
 	.blur(() -> closepreference())
-
-	$("#preference .field input")
-	.click(() ->
-		b = 0
-		$("#preference input:checked").each((a) ->
-			b |= $(@).val()
-		)
-		history.replaceState(null,null,"#{location.protocol}//#{location.hostname}#{location.pathname}?b=#{b}")
-		console.log(b)
-		console.log(2)
-	)
-
-	$("#preference .field").append(
-		$("<div>")
-		.addClass("input")
-		.click(() ->
-			$(@).parent().find("input").click()
-		)
-	)
 
 	draw()
 
@@ -329,14 +294,14 @@ $(window).load(() ->
 	)
 
 	if (mode & C_MODE_MASK) == (C_MODE_PHONE|C_MODE_VERTICAL)
-		$("#main").animate({"left":-$("#menu").width()},333,"easeOutCubic")
-		$("#navi .a").show().animate({"opacity":1.000},333,"easeOutCubic")
+		$("#main").animate({"left":-$("#menu").width()},500,"easeOutCubic")
+		$("#navi .a").show().animate({"opacity":1.000},500,"easeOutCubic")
 
 	history.replaceState(null,null,"#{location.protocol}//#{location.hostname}/#{c}/#{location.search}")
 
 @back = () ->
-	$("#main").animate({"left":0},333,"easeOutCubic")
-	$("#navi .a").animate({"opacity":0.000},333,"easeOutCubic",-> $(@).hide())
+	$("#main").animate({"left":0},500,"easeOutCubic")
+	$("#navi .a").animate({"opacity":0.000},500,"easeOutCubic",-> $(@).hide())
 
 @read = (c = manga,n,i = 0) ->
 	manga = c
@@ -351,17 +316,44 @@ $(window).load(() ->
 @open = () ->
 	preference.close()
 	$("#frame")
-	.show()
-	.animate({"opacity":1.000},333,"easeOutCubic")
-	.focus()
+	.css("left","")
+	.css("top","")
+	.css("width","")
+	.css("height","")
+	.show(0,-> $(@).focus())
+	.animate({"opacity":1.000},500,"easeOutCubic")
 
-@close = () ->
-	$("#image img:NOT(.thumbnail)").remove()
-	$("#frame")
-	#.animate({"opacity":0},333,"easeOutCubic",-> $(@).hide())
-	.animate({"opacity":0},333,"easeOutCubic",->
-		$(@).hide()
-	)
+@close = (a) ->
+	if !a
+		$("#frame")
+		#.animate({"opacity":0},500,"easeOutCubic",-> $(@).hide())
+		.animate({"opacity":0},500,"easeOutCubic")
+		.hide(0,-> $("#image img:NOT(.thumbnail)").remove())
+
+	else
+		$("#frame")
+		#.animate({"opacity":0},500,"easeOutCubic",-> $(@).hide())
+		.animate({"left":"100%","top":"100%","width":0,"height":0,"opacity":0},500,"easeOutCubic")
+		.hide(0,-> $("#image img:NOT(.thumbnail)").remove())
+
+		$("#conf").append(
+			$("#conf .cloak")
+			.clone(1)
+			.removeClass("cloak")
+			.find("img")
+				.css("background-image",
+					$("#image img:visible").css("background-image").replace(/op=./,"op=m")
+				)
+				.prop("alt",[manga,volume,index].join("/"))
+				.click(() ->
+					m = $(@).prop("alt").split("/")
+					load(manga = m[0])
+					read(null,m[1],parseInt(m[2]))
+					$(@).parent().remove()
+				)
+				.end()
+		)
+		console.log($("#image img:visible").css("background-image"));
 
 
 @make = (i = index) ->
@@ -401,26 +393,74 @@ $(window).load(() ->
 				make(i + 2).hide()
 				make(i + 3).hide()
 		index = i
+	else if i >= list.length
+		close()
+		if preference.b & F_OPTION_SEQUENTIAL
+			if $(".volume:contains(#{volume}) + .volume").size()
+				read(null,$(".volume:contains(#{volume}) + .volume").find("span").html(),0)
 	else
 		close()
 
 	history.replaceState(null,null,"#{location.protocol}//#{location.hostname}/#{manga}/#{volume}/#{location.search}##{index}")
 	1
 
-@preference = new class
+@preference = new (class
+	constructor:(@b = 0) ->
+		for param,v of {
+			"Display Mode":
+				"Desktop":C_MODE_PC
+				"Notebook":C_MODE_NOTEBOOK
+				"Phone":C_MODE_PHONE
+				"Tablet":C_MODE_TABLET
+			"Show Thumbnails":
+				"":F_OPTION_THUMBNAIL
+			"Compression/Minimize":
+				"":F_OPTION_COMPRESS
+			"Horizontal Split":
+				"":F_OPTION_SPLIT
+			"Sequential Read":
+				"":F_OPTION_SEQUENTIAL
+		}
+			mask = Object.keys(v).reduce(((a,b) -> a | v[b]),0)
+			console.log(mask)
+			for k,b of v
+				$("#preference").append(
+					$("#preference .cloak")
+					.clone(1)
+					.removeClass("cloak")
+					.find(".label:eq(0)").html(param).end()
+					.find(".label:eq(1)").html(k).end()
+					.find("input")
+						.prop("type",(["radio","checkbox"])[!(Object.keys(v).length - 1) + 0])
+						.prop("name",mask)
+						.prop("value",b)
+						.prop("checked",@b & b)
+						.change(=> @update(arguments...))
+						.end()
+					.find(".input").click(-> $(@).parents(".field").find("input").click()).end()
+				)
 	open:() ->
 		$("#preference")
 		.focus()
 		.show()
-		.animate({"opacity":0.900},333,"easeOutCubic")
+		.animate({"opacity":0.900},500,"easeOutCubic")
 	close:() ->
 		$("#preference")
-		.animate({"opacity":0.000},333,"easeOutCubic",-> $(@).hide())
+		.animate({"opacity":0.000},500,"easeOutCubic",-> $(@).hide())
 	toggle:() ->
 		if $("#preference").css("display") == "none"
 			@open()
 		else
 			@close()
+	update:(a) ->
+		console.log("update")
+		if $(a.target).prop("checked")
+			@b = @b & ~$(a.target).prop("name") | $(a.target).prop("value")
+		else
+			@b = @b & ~$(a.target).prop("name")
+		draw(@b)
+		history.replaceState(null,null,"#{location.protocol}//#{location.hostname}#{location.pathname}?b=#{b}")
+)((location.search.match("b=(\\d+)") || [0,F_OPTION_THUMBNAIL|F_OPTION_SEQUENTIAL])[1])
 
 @grep = () ->
 	$(".book").each(() ->
@@ -470,12 +510,21 @@ html, body {
 	height: 100%;
 }
 
+#navi > *, #conf > * {
+	margin-left: 1em;
+	margin-right: 1em;
+}
+
+#conf .thumbnail {
+	box-sizing: border-box;
+	padding: 10%;
+	height: 100%;
+}
+
 #navi span {
 	font-weight: bold;
 	background-color: #ffffff;
 	background-clip: padding-box;
-	margin-left: 1em;
-	margin-right: 1em;
 	padding: 0.25em;
 	border: 1px #000000 solid;
 	border-radius: 0.25em;
@@ -512,6 +561,7 @@ html, body {
 
 .grep input {
 	width: 80%;
+	font-size: inherit;
 }
 
 .book {
@@ -557,6 +607,7 @@ html, body {
 
 .thumbnail, #image img {
 	display: block;
+	background-clip: content-box;
 	background-size: contain;
 	background-repeat: no-repeat;
 	background-position: 50%;
@@ -591,6 +642,7 @@ html, body {
 	width: 100%;
 	height: 100%;
 	position: relative;
+//	-webkit-touch-callout:none;
 }
 #image,#frame .thumbnail {
 	width: 100%;
@@ -852,116 +904,21 @@ body {
 	</div>
 	-->
 </div>
-	<div id="preference">
-		<div class="field">
-			<div class="label valign">
-				Display Mode
-			</div>
-			<div class="label valign">
-				Desktop
-			</div>
-			<div class="value">
-				<label>
-					<input type="radio" name="255" value="1">
-				</label>
-			</div>
+<div id="preference">
+	<div class="field cloak">
+		<div class="label valign">
 		</div>
-		<div class="field">
-			<div class="label valign">
-			</div>
-			<div class="label valign">
-				Notebook
-			</div>
-			<div class="value">
-				<label>
-					<input type="radio" name="255" value="2">
-				</label>
-			</div>
+		<div class="label valign">
 		</div>
-		<div class="field">
-			<div class="label valign">
-			</div>
-			<div class="label valign">
-				Phone
-			</div>
-			<div class="value">
-				<label>
-					<input type="radio" name="255" value="4">
-				</label>
-			</div>
+		<div class="value">
+			<label>
+				<input type="checkbox">
+			</label>
 		</div>
-		<div class="field">
-			<div class="label valign">
-			</div>
-			<div class="label valign">
-				Tablet
-			</div>
-			<div class="value">
-				<label>
-					<input type="radio" name="255" value="8">
-				</label>
-			</div>
-		</div>
-		<div class="field">
-			<div class="label valign">
-			</div>
-			<div class="label valign">
-			</div>
-			<div class="value">
-				<label>
-					<input type="checkbox" name="768" value="512">
-				</label>
-			</div>
-		</div>
-		<div class="field">
-			<div class="label valign">
-				Show Thumbnails
-			</div>
-			<div class="label valign">
-			</div>
-			<div class="value">
-				<label>
-					<input type="checkbox" name="65536" value="65536">
-				</label>
-			</div>
-		</div>
-		<div class="field">
-			<div class="label valign">
-				Compression/Minimize
-			</div>
-			<div class="label valign">
-			</div>
-			<div class="value">
-				<label>
-					<input type="checkbox" name="131072" value="131072">
-				</label>
-			</div>
-		</div>
-		<div class="field">
-			<div class="label valign">
-				Horizontal Split
-			</div>
-			<div class="label valign">
-			</div>
-			<div class="value">
-				<label>
-					<input type="checkbox" name="262144" value="262144">
-				</label>
-			</div>
-		</div>
-		<div class="cloak">
-			<div class="label valign">
-				Horizontal Split
-			</div>
-			<div class="label valign">
-			</div>
-			<div class="value">
-				<label>
-					<input type="checkbox" name="262144" value="262144">
-				</label>
-			</div>
+		<div class="input">
 		</div>
 	</div>
+</div>
 <div id="main">
 	<div id="menu">
 		<div class="grep">
@@ -992,6 +949,9 @@ body {
 	</div>
 </div>
 <div id="conf">
+	<div class="c cloak">
+		<img class="thumbnail">
+	</div>
 </div>
 </body>
 </html>
