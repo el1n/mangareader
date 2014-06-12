@@ -132,12 +132,12 @@ index = 0
 		when C_MODE_UNKNOWN
 			if navigator.userAgent.match(/Android.*Mobile|iPhone/)
 				if $(window).width() < $(window).height()
-					draw(C_MODE_PHONE|C_MODE_VERTICAL)
+					draw(C_MODE_PHONE|C_MODE_VERTICAL|F_OPTION_COMPRESS)
 				else
 					draw(C_MODE_PHONE|C_MODE_HORIZON)
 			else if navigator.userAgent.match(/Android|iPad/)
 				if $(window).width() < $(window).height()
-					draw(C_MODE_TABLET|C_MODE_VERTICAL)
+					draw(C_MODE_TABLET|C_MODE_VERTICAL|F_OPTION_COMPRESS)
 				else
 					draw(C_MODE_TABLET|C_MODE_HORIZON)
 			else
@@ -201,7 +201,15 @@ $(window).load(() ->
 
 	$("#frame")
 	.prop("tabindex",0)
-	.bind("click",-> jump(index + 1))
+	.bind("click",->
+		jump(index + 1)
+		$("#frame video").each(() ->
+			if @paused
+				@.play()
+			else
+				@.pause()
+		)
+	)
 	.bind("contextmenu",-> jump(index - 1) && false)
 	.bind("mousedown",() -> $(@).trigger("touchstart"))
 	.bind("mouseup",() -> $(@).trigger("touchend"))
@@ -306,14 +314,23 @@ $(window).load(() ->
 @read = (c = manga,n,i = 0) ->
 	manga = c
 	volume = n
-	$.getJSON("<?=getenv("SCRIPT_NAME")?>/#{encodeURIComponent(c)}/#{n}/?op=i",(a) ->
-		window.list = a.value
-		open()
-		jump(i);
-	)
-	history.replaceState(null,null,"#{location.protocol}//#{location.hostname}/#{c}/#{n}/#{location.search}##{i}")
 
-@open = () ->
+	if volume.match("\.mp4$")
+		$.getJSON("<?=getenv("SCRIPT_NAME")?>/#{encodeURIComponent(c)}/#{n}/?op=i",(a) ->
+			window.list = undefined
+			open(1)
+			player()
+		)
+		history.replaceState(null,null,"#{location.protocol}//#{location.hostname}/#{c}/#{n}/#{location.search}")
+	else
+		$.getJSON("<?=getenv("SCRIPT_NAME")?>/#{encodeURIComponent(c)}/#{n}/?op=i",(a) ->
+			window.list = a.value
+			open()
+			jump(i);
+		)
+		history.replaceState(null,null,"#{location.protocol}//#{location.hostname}/#{c}/#{n}/#{location.search}##{i}")
+
+@open = (a) ->
 	preference.close()
 	$("#frame")
 	.css("left","")
@@ -328,13 +345,13 @@ $(window).load(() ->
 		$("#frame")
 		#.animate({"opacity":0},500,"easeOutCubic",-> $(@).hide())
 		.animate({"opacity":0},500,"easeOutCubic")
-		.hide(0,-> $("#image img:NOT(.thumbnail)").remove())
+		.hide(0,-> $("#frame img:NOT(.cloak)").remove())
 
 	else
 		$("#frame")
 		#.animate({"opacity":0},500,"easeOutCubic",-> $(@).hide())
 		.animate({"left":"100%","top":"100%","width":0,"height":0,"opacity":0},500,"easeOutCubic")
-		.hide(0,-> $("#image img:NOT(.thumbnail)").remove())
+		.hide(0,-> $("#frame img:NOT(.cloak)").remove())
 
 		$("#conf").append(
 			$("#conf .cloak")
@@ -342,7 +359,7 @@ $(window).load(() ->
 			.removeClass("cloak")
 			.find("img")
 				.css("background-image",
-					$("#image img:visible").css("background-image").replace(/op=./,"op=m")
+					$("#frame img:visible").css("background-image").replace(/op=./,"op=m")
 				)
 				.prop("alt",[manga,volume,index].join("/"))
 				.click(() ->
@@ -353,56 +370,63 @@ $(window).load(() ->
 				)
 				.end()
 		)
-		console.log($("#image img:visible").css("background-image"));
+		console.log($("#frame img:visible").css("background-image"));
 
 
 @make = (i = index) ->
 	if $("##{i}").size()
 		console.log("? Image #{i} cached.")
 	else
-		$("#image").append(
-			$("#image .thumbnail")
-			.clone(1)
+		$("#frame").append(
+			$("<img>")
 			.prop("id",i)
-			.prop("class","")
-			.css("background-image","url(\"<?=getenv("SCRIPT_NAME")?>/#{encodeURIComponent(manga)}/#{encodeURIComponent(volume)}/#{encodeURIComponent(@list[parseInt(i / (!!(b & F_OPTION_SPLIT) + 1))])}?op=g&s=#{b & F_OPTION_SPLIT}&p=#{i % 2}&w=#{document.body.clientWidth}&h=#{document.body.clientHeight}&c=#{b & F_OPTION_COMPRESS}\")")
+			.css("background-image","url(\"<?=getenv("SCRIPT_NAME")?>/#{encodeURIComponent(manga)}/#{encodeURIComponent(volume)}/#{encodeURIComponent(@list[parseInt(i / (!!(preference.b & F_OPTION_SPLIT) + 1))])}?op=g&s=#{preference.b & F_OPTION_SPLIT}&p=#{i % 2}&w=#{document.body.clientWidth}&h=#{document.body.clientHeight}&c=#{preference.b & F_OPTION_COMPRESS}\")")
 		)
 		console.log("? Image #{i} maked.")
 	return $("##{i}")
 
 @jump = (i) ->
-	if 0 <= i < list.length
-		$("#image img:NOT(.thumbnail)#{(":NOT(##{_})" for _ in [(i - C_CACHE_BEHIND)..(i + C_CACHE_AHEAD)]).join("")}").remove()
-		switch i - index
-			when 1
-				make(i - 1).hide()
-				make(i + 0).show()
-				make(i + 1).hide()
-				make(i + 2).hide()
-				make(i + 3).hide()
-			when -1
-				make(i - 1).hide()
-				make(i + 0).show()
-				make(i + 1).hide()
-				make(i + 2).hide()
-				make(i + 3).hide()
-			else
-				make(i - 1).hide()
-				make(i + 0).show()
-				make(i + 1).hide()
-				make(i + 2).hide()
-				make(i + 3).hide()
-		index = i
-	else if i >= list.length
-		close()
-		if preference.b & F_OPTION_SEQUENTIAL
-			if $(".volume:contains(#{volume}) + .volume").size()
-				read(null,$(".volume:contains(#{volume}) + .volume").find("span").html(),0)
-	else
-		close()
+	if list?
+		if 0 <= i < list.length
+			$("#frame img:NOT(.cloak)#{(":NOT(##{_})" for _ in [(i - C_CACHE_BEHIND)..(i + C_CACHE_AHEAD)]).join("")}").remove()
+			switch i - index
+				when 1
+					make(i - 1).hide()
+					make(i + 0).show()
+					make(i + 1).hide()
+					make(i + 2).hide()
+					make(i + 3).hide()
+				when -1
+					make(i - 1).hide()
+					make(i + 0).show()
+					make(i + 1).hide()
+					make(i + 2).hide()
+					make(i + 3).hide()
+				else
+					make(i - 1).hide()
+					make(i + 0).show()
+					make(i + 1).hide()
+					make(i + 2).hide()
+					make(i + 3).hide()
+			index = i
+		else if i >= list.length
+			close()
+			if preference.b & F_OPTION_SEQUENTIAL
+				if $(".volume:contains(#{volume}) + .volume").size()
+					read(null,$(".volume:contains(#{volume}) + .volume").find("span").html(),0)
+		else
+			close()
 
 	history.replaceState(null,null,"#{location.protocol}//#{location.hostname}/#{manga}/#{volume}/#{location.search}##{index}")
 	1
+
+@player = () ->
+	$("#frame").append(
+		$("<video>")
+		.prop("id",1)
+		.prop("src","/direct/#{encodeURIComponent(manga)}/#{encodeURIComponent(volume)}")
+		.show()
+	)
 
 @preference = new (class
 	constructor:(@b = 0) ->
@@ -459,7 +483,7 @@ $(window).load(() ->
 		else
 			@b = @b & ~$(a.target).prop("name")
 		draw(@b)
-		history.replaceState(null,null,"#{location.protocol}//#{location.hostname}#{location.pathname}?b=#{b}")
+		history.replaceState(null,null,"#{location.protocol}//#{location.hostname}#{location.pathname}?b=#{@b}")
 )((location.search.match("b=(\\d+)") || [0,F_OPTION_THUMBNAIL|F_OPTION_SEQUENTIAL])[1])
 
 @grep = () ->
@@ -605,7 +629,7 @@ html, body {
 	border: 1px #ffccd4 solid;
 }
 
-.thumbnail, #image img {
+.thumbnail, #frame img:not(.cloak) {
 	display: block;
 	background-clip: content-box;
 	background-size: contain;
@@ -638,13 +662,18 @@ html, body {
 	z-index: 1;
 }
 
-#image img {
+#frame img,#frame video {
 	width: 100%;
 	height: 100%;
-	position: relative;
+//	position: relative;
 //	-webkit-touch-callout:none;
 }
 #image,#frame .thumbnail {
+	width: 100%;
+	height: 100%;
+}
+
+#image video {
 	width: 100%;
 	height: 100%;
 }
@@ -713,7 +742,7 @@ body {
 
 #navi,#conf {
 	//position: absolute;
-	height: 10%;
+	height: 48px;
 }
 
 #conf {
@@ -721,9 +750,9 @@ body {
 }
 
 #main {
-	//margin-top: 32px;
+	//margin-top: 64px;
 	width: 100%;
-	height: 80%;
+	height: calc(100% - 96px);
 }
 
 #menu {
@@ -887,9 +916,7 @@ body {
 </head>
 <body>
 <div id="frame">
-	<div id="image">
-		<img class="thumbnail">
-	</div>
+	<img class="cloak">
 </div>
 <div id="navi">
 	<div class="a">
