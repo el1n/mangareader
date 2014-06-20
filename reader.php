@@ -156,6 +156,7 @@
 @F_OPTION_COMPRESS = 0x00020000
 @F_OPTION_SPLIT = 0x00040000
 @F_OPTION_SEQUENTIAL = 0x00080000
+@F_OPTION_SLIDE = 0x00100000
 @C_CACHE_AHEAD = 3
 @C_CACHE_BEHIND = 1
 @C_IMG_NULL = $("<canvas width=1 height=1 />")[0].toDataURL()
@@ -444,39 +445,47 @@ $(window).load(() ->
 	if list?
 		if 0 <= i < list.length
 			$("#frame img:NOT(.cloak)#{(":NOT(##{_})" for _ in [(i - C_CACHE_BEHIND)..(i + C_CACHE_AHEAD)]).join("")}").remove()
-			switch i - index
-				when 1
-					make(i - 1)
-					.stop()
-					.css("left","0%")
-					.animate({left:"100%"},333,"easeOutCubic",-> $(@).hide())
-					make(i + 0)
-					.stop()
-					.css("left","-100%")
-					.show()
-					.animate({left:"0"},333,"easeOutCubic")
-					make(i + 1).stop().hide()
-					make(i + 2).stop().hide()
-					make(i + 3).stop().hide()
-				when -1
-					make(i - 1).stop().hide()
-					make(i + 0)
-					.stop()
-					.css("left","100%")
-					.show()
-					.animate({left:"0"},333,"easeOutCubic")
-					make(i + 1)
-					.stop()
-					.css("left","0%")
-					.animate({left:"-100%"},333,"easeOutCubic",-> $(@).hide())
-					make(i + 2).stop().hide()
-					make(i + 3).stop().hide()
-				else
-					make(i - 1).hide()
-					make(i + 0).show()
-					make(i + 1).hide()
-					make(i + 2).hide()
-					make(i + 3).hide()
+
+			if preference.b & F_OPTION_SLIDE
+				switch i - index
+					when 1
+						make(i - 1)
+						.stop()
+						.css("left","0%")
+						.animate({left:"100%"},333,"easeOutCubic",-> $(@).hide())
+						make(i + 0)
+						.stop()
+						.css("left","-100%")
+						.show()
+						.animate({left:"0"},333,"easeOutCubic")
+						make(i + 1).stop().hide()
+						make(i + 2).stop().hide()
+						make(i + 3).stop().hide()
+					when -1
+						make(i - 1).stop().hide()
+						make(i + 0)
+						.stop()
+						.css("left","100%")
+						.show()
+						.animate({left:"0"},333,"easeOutCubic")
+						make(i + 1)
+						.stop()
+						.css("left","0%")
+						.animate({left:"-100%"},333,"easeOutCubic",-> $(@).hide())
+						make(i + 2).stop().hide()
+						make(i + 3).stop().hide()
+					else
+						make(i - 1).hide()
+						make(i + 0).show()
+						make(i + 1).hide()
+						make(i + 2).hide()
+						make(i + 3).hide()
+			else
+				make(i - 1).hide()
+				make(i + 0).show()
+				make(i + 1).hide()
+				make(i + 2).hide()
+				make(i + 3).hide()
 			index = i
 		else if i >= list.length
 			close()
@@ -517,6 +526,8 @@ $(window).load(() ->
 				"":F_OPTION_SPLIT
 			"Sequential Read":
 				"":F_OPTION_SEQUENTIAL
+			"Slide Effect":
+				"":F_OPTION_SLIDE
 		}
 			mask = Object.keys(v).reduce(((a,b) -> a | v[b]),0)
 			console.log(mask)
@@ -599,11 +610,6 @@ $(window).load(() ->
 		else
 			$(@).hide()
 	)
-
-$("#frame2 div")
-.bind("touchstart",-> alert(2))
-.click(-> alert(1))
-$("#frame2").show()
 </script>
 <style id="common" type="text/css">
 .valign {
@@ -1086,6 +1092,53 @@ body {
 }
 </style>
 <style id="MODE_TABLET_HORIZON" type="text/css">
+body {
+	font-size: 10pt;
+}
+
+#navi,#conf {
+	height: 7.5%;
+}
+
+#main {
+	width: 100%;
+	height: 85%;
+}
+
+#menu {
+	width: 30%;
+}
+#book {
+	width: 70%;
+}
+
+#frame.vid {
+	top: 5%;
+	height: calc(100% - 5%);
+	height: -webkit-calc(100% - 5%);
+}
+
+
+.book {
+	height: 12.5%;
+}
+
+.volume {
+	margin: 1%;
+	width: 14%;
+}
+#preference input {
+	width: 2.5em;
+}
+
+#preference  {
+	width: 40%;
+	height: 92.5%;
+}
+
+#preference .field {
+	height: 8%;
+}
 </style>
 </head>
 <body>
