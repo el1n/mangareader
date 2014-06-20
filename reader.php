@@ -26,6 +26,7 @@
 			break;
 		case "m":
 			$file = BOOKSHELF.getenv("PATH_INFO");
+			$file = preg_replace("/\/\$/","",$file);
 #			if(is_dir($file)){
 #				$file = $file."/".reset(preg_grep("/\.(gif|jpe?g|png)$/i",scandir($file)));
 #			}
@@ -35,7 +36,24 @@
 			}
 			if(!$r = $memcached->get($file)){
 				$r = new Imagick();
-				if(!is_file($file) || !$r->readImage($file)){
+				if(is_file($file)){
+					switch(pathinfo($file,PATHINFO_EXTENSION)){
+						case "bmp":
+						case "gif":
+						case "jpeg":
+						case "jpg":
+						case "png":
+							$r->readImage($file);
+							break;
+						case "avi":
+						case "mp4":
+							error_log($file);
+							$bin = shell_exec("ffmpeg -i '$file' -ss 10 -vframes 1 -f image2 pipe:1");
+							$r->readImageBlob($bin);
+							break;
+					}
+				}
+				if(!$r->getNumberImages()){
 					$r->newImage(1,1,"#000000");
 				}
 				$r->thumbnailImage(100,100,1);
@@ -43,6 +61,25 @@
 				$r->setImageCompressionQuality(80);
 
 				$memcached->set($file,$r->getImageBlob());
+#				switch(pathinfo($file,PATHINFO_EXTENSION)){
+#					case "jpg":
+#					case "jpeg":
+#						$gd = imagecreatefromjpeg($file);
+#						break;
+#				}
+#				if(!$gd){
+#					$gd = imagecreate(100,100);
+#				}
+#				$scale = min(100 / imagesx($gd),100 / imagesy($gd));
+#				$gd2 = imagecreatetruecolor(imagesx($gd) * $scale,imagesy($gd) * $scale);
+#				imagecopyresampled($gd2,$gd,0,0,0,0,imagesx($gd2),imagesy($gd2),imagesx($gd),imagesy($gd));
+#
+#				ob_start();
+#				imagejpeg($gd2);
+#				$r = ob_get_contents();
+#				ob_end_clean();
+#
+#				$memcached->set($file,$r);
 			}
 			header("Content-Type: image/jpeg");
 			echo($r);
@@ -99,7 +136,7 @@
 <!DOCTYPE HTML>
 <html>
 <head>
-<me.authorhttp-equiv="Content-Type" content="text/html;charset=UTF-8">
+<meta http-equiv="Content-Type" content="text/html;charset=UTF-8">
 <script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js" type="text/javascript"></script>
 <script src="//cdnjs.cloudflare.com/ajax/libs/jquery-easing/1.3/jquery.easing.min.js" type="text/javascript"></script>
 <script src="http://www.netcu.de/templates/netcu/js/jquery.touchwipe.min.js" type="text/javascript"></script>
@@ -115,12 +152,13 @@
 @C_MODE_TABLET = 0x0008
 @C_MODE_VERTICAL = 0x0000
 @C_MODE_HORIZON = 0x0200
-@C_CACHE_AHEAD = 3
-@C_CACHE_BEHIND = 1
 @F_OPTION_THUMBNAIL = 0x00010000
 @F_OPTION_COMPRESS = 0x00020000
 @F_OPTION_SPLIT = 0x00040000
 @F_OPTION_SEQUENTIAL = 0x00080000
+@C_CACHE_AHEAD = 3
+@C_CACHE_BEHIND = 1
+@C_IMG_NULL = $("<canvas width=1 height=1 />")[0].toDataURL()
 
 b = 0
 manga = ""
@@ -194,7 +232,7 @@ $(window).load(() ->
 
 	$("#header").html(location.hostname)
 	$("img.thumbnail").each(() ->
-		@src = $("<canvas width=1 height=1 />")[0].toDataURL()
+		@src = C_IMG_NULL
 	)
 
 	id = 0;
@@ -340,18 +378,33 @@ $(window).load(() ->
 	.show(0,-> $(@).focus())
 	.animate({"opacity":1.000},500,"easeOutCubic")
 
+	if a
+		$("#frame,#navi")
+		.addClass("vid")
+		.removeClass("img")
+		navi.change("vid")
+	else
+		$("#frame,#navi")
+		.addClass("img")
+		.removeClass("vid")
+		navi.change("img")
+
+
+@hogehoge = () -> close()
 @close = (a) ->
+	navi.change("none")
+
 	if !a
 		$("#frame")
 		#.animate({"opacity":0},500,"easeOutCubic",-> $(@).hide())
 		.animate({"opacity":0},500,"easeOutCubic")
-		.hide(0,-> $("#frame img:NOT(.cloak)").remove())
+		.hide(0,-> $("#frame *").remove())
 
 	else
 		$("#frame")
 		#.animate({"opacity":0},500,"easeOutCubic",-> $(@).hide())
 		.animate({"left":"100%","top":"100%","width":0,"height":0,"opacity":0},500,"easeOutCubic")
-		.hide(0,-> $("#frame img:NOT(.cloak)").remove())
+		.hide(0,-> $("#frame *").remove())
 
 		$("#conf").append(
 			$("#conf .cloak")
@@ -371,6 +424,7 @@ $(window).load(() ->
 				.end()
 		)
 		console.log($("#frame img:visible").css("background-image"));
+	history.replaceState(null,null,"#{location.protocol}//#{location.hostname}/#{manga}/#{location.search}")
 
 
 @make = (i = index) ->
@@ -379,6 +433,7 @@ $(window).load(() ->
 	else
 		$("#frame").append(
 			$("<img>")
+			.prop("src",C_IMG_NULL)
 			.prop("id",i)
 			.css("background-image","url(\"<?=getenv("SCRIPT_NAME")?>/#{encodeURIComponent(manga)}/#{encodeURIComponent(volume)}/#{encodeURIComponent(@list[parseInt(i / (!!(preference.b & F_OPTION_SPLIT) + 1))])}?op=g&s=#{preference.b & F_OPTION_SPLIT}&p=#{i % 2}&w=#{document.body.clientWidth}&h=#{document.body.clientHeight}&c=#{preference.b & F_OPTION_COMPRESS}\")")
 		)
@@ -391,17 +446,31 @@ $(window).load(() ->
 			$("#frame img:NOT(.cloak)#{(":NOT(##{_})" for _ in [(i - C_CACHE_BEHIND)..(i + C_CACHE_AHEAD)]).join("")}").remove()
 			switch i - index
 				when 1
-					make(i - 1).hide()
-					make(i + 0).show()
-					make(i + 1).hide()
-					make(i + 2).hide()
-					make(i + 3).hide()
+					make(i - 1)
+					.stop()
+					.css("left","0%")
+					.animate({left:"100%"},333,"easeOutCubic",-> $(@).hide())
+					make(i + 0)
+					.stop()
+					.css("left","-100%")
+					.show()
+					.animate({left:"0"},333,"easeOutCubic")
+					make(i + 1).stop().hide()
+					make(i + 2).stop().hide()
+					make(i + 3).stop().hide()
 				when -1
-					make(i - 1).hide()
-					make(i + 0).show()
-					make(i + 1).hide()
-					make(i + 2).hide()
-					make(i + 3).hide()
+					make(i - 1).stop().hide()
+					make(i + 0)
+					.stop()
+					.css("left","100%")
+					.show()
+					.animate({left:"0"},333,"easeOutCubic")
+					make(i + 1)
+					.stop()
+					.css("left","0%")
+					.animate({left:"-100%"},333,"easeOutCubic",-> $(@).hide())
+					make(i + 2).stop().hide()
+					make(i + 3).stop().hide()
 				else
 					make(i - 1).hide()
 					make(i + 0).show()
@@ -413,7 +482,11 @@ $(window).load(() ->
 			close()
 			if preference.b & F_OPTION_SEQUENTIAL
 				if $(".volume:contains(#{volume}) + .volume").size()
-					read(null,$(".volume:contains(#{volume}) + .volume").find("span").html(),0)
+					$("#frame")
+					.queue(->
+						read(null,$(".volume:contains(#{volume}) + .volume").find("span").html(),0)
+						$(@).dequeue();
+					)
 		else
 			close()
 
@@ -422,8 +495,8 @@ $(window).load(() ->
 
 @player = () ->
 	$("#frame").append(
-		$("<video>")
-		.prop("id",1)
+		$("<video controls>")
+		.prop("id",0)
 		.prop("src","/direct/#{encodeURIComponent(manga)}/#{encodeURIComponent(volume)}")
 		.show()
 	)
@@ -486,13 +559,51 @@ $(window).load(() ->
 		history.replaceState(null,null,"#{location.protocol}//#{location.hostname}#{location.pathname}?b=#{@b}")
 )((location.search.match("b=(\\d+)") || [0,F_OPTION_THUMBNAIL|F_OPTION_SEQUENTIAL])[1])
 
+@navi = new (class
+	constructor:() ->
+		@change("none")
+	change:(a) ->
+		$("#navi")
+		.removeClass("none")
+		.removeClass("img")
+		.removeClass("vid")
+		.addClass(a)
+
+		$("#navi div:NOT(.#{a})")
+		.hide()
+		$("#navi div.#{a}:NOT(.cloak)")
+		.prop("opacity",0)
+		.show()
+		.animate({"opacity":1.000},500,"easeOutCubic")
+)()
+
+@url = new (class
+	constructor:() ->
+		@url = [
+			location.protocol
+			location.hostname
+			location.pathname
+			location.search
+			location.hash
+		]
+)((location.search.match("b=(\\d+)") || [0,F_OPTION_THUMBNAIL|F_OPTION_SEQUENTIAL])[1])
+
 @grep = () ->
-	$(".book").each(() ->
-		if $(@).find("span").html().indexOf($(".grep input").val()) != -1
+	$(".book").each(->
+		cnv = (a) ->
+			a = a.toUpperCase()
+			a = a.replace(/[\u3041-\u3096]/g,(a) -> String.fromCharCode(a.charCodeAt(0) + 0x60))
+
+		if cnv($(@).find("span").html()).indexOf(cnv($(".grep input").val())) != -1
 			$(@).show()
 		else
 			$(@).hide()
 	)
+
+$("#frame2 div")
+.bind("touchstart",-> alert(2))
+.click(-> alert(1))
+$("#frame2").show()
 </script>
 <style id="common" type="text/css">
 .valign {
@@ -515,10 +626,14 @@ html, body {
 	height: 0%;
 	background-color: #382f2f;
 }
+#navi.img {
+	background-color: #382f2f;
+}
+#navi.vid {
+	background-color: #1f1f1f;
+}
 
 #navi .a, #conf .a {
-	display: none;
-	opacity: 0;
 	float: left;
 	height: 100%;
 }
@@ -539,6 +654,14 @@ html, body {
 	margin-right: 1em;
 }
 
+#navi span:hover {
+	cursor: pointer;
+}
+
+#navi span::selection {
+	background-color: transparent;
+}
+
 #conf .thumbnail {
 	box-sizing: border-box;
 	padding: 10%;
@@ -547,12 +670,21 @@ html, body {
 
 #navi span {
 	font-weight: bold;
-	background-color: #ffffff;
 	background-clip: padding-box;
-	padding: 0.25em;
-	border: 1px #000000 solid;
-	border-radius: 0.25em;
+	padding: 0.5em;
+	border-radius: 0.5em;
 }
+
+#navi.none span,#nabi.img span{
+	background-color: #ffffff;
+	border: 1px #000000 solid;
+}
+#navi.vid span{
+	color: #c0c0c0;
+	background-color: #606060;
+	border: 1px #000000 solid;
+}
+
 
 #main {
 	width: 0%;
@@ -656,17 +788,31 @@ html, body {
 	position: absolute;
 	display: none;
 	width: 100%;
-	height: 100%;
+	//height: 100%;
 	background-color: #1f1f1f;
 	opacity: 0;
-	z-index: 1;
+	z-index: 3;
+	user-select: none;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+#frame:focus {
+	outline: 0;
 }
 
 #frame img,#frame video {
 	width: 100%;
 	height: 100%;
+	position: absolute;
 //	position: relative;
 //	-webkit-touch-callout:none;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+#frame.img {
+	height: 100%;
 }
 #image,#frame .thumbnail {
 	width: 100%;
@@ -749,6 +895,13 @@ body {
 	bottom: 0;
 }
 
+#frame.vid {
+	top: 48px;
+	height: calc(100% - 48px);
+	height: -webkit-calc(100% - 48px);
+}
+
+
 #main {
 	//margin-top: 64px;
 	width: 100%;
@@ -799,6 +952,13 @@ body {
 	height: 80%;
 }
 
+#frame.vid {
+	top: 10%;
+	height: calc(100% - 10%);
+	height: -webkit-calc(100% - 10%);
+}
+
+
 #menu, #book {
 	width: 50%;
 }
@@ -838,6 +998,13 @@ body {
 	width: 100%;
 	height: 75%;
 }
+
+#frame.vid {
+	top: 12.5%;
+	height: calc(100% - 12.5%);
+	height: -webkit-calc(100% - 12.5%);
+}
+
 
 #menu {
 	width: 50%;
@@ -890,6 +1057,13 @@ body {
 	width: 60%;
 }
 
+#frame.vid {
+	top: 5%;
+	height: calc(100% - 5%);
+	height: -webkit-calc(100% - 5%);
+}
+
+
 .book {
 	height: 10%;
 }
@@ -916,13 +1090,15 @@ body {
 </head>
 <body>
 <div id="frame">
-	<img class="cloak">
 </div>
-<div id="navi">
-	<div class="a">
+<div id="navi" class="none">
+	<div class="a vid">
+		<span class="valign" onclick="hogehoge()">&nbsp;×&nbsp;</span>
+	</div>
+	<div class="a none img cloak">
 		<span class="valign" onclick="back()">&lt;&nbsp;Back</span>
 	</div>
-	<div class="c">
+	<div class="c none img">
 		<span class="valign" onclick="preference.toggle()">Preference</span>
 	</div>
 	<!--
