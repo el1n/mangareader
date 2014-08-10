@@ -141,6 +141,7 @@
 <script src="//cdnjs.cloudflare.com/ajax/libs/jquery-easing/1.3/jquery.easing.min.js" type="text/javascript"></script>
 <script src="http://www.netcu.de/templates/netcu/js/jquery.touchwipe.min.js" type="text/javascript"></script>
 <script src="http://coffeescript.org/extras/coffee-script.js" type="text/javascript"></script>
+<script src="/lib/js/video-js/4.7.3/video.js" type="text/javascript"></script>
 <script type="text/javascript" charset="UTF-8">
 </script>
 <script type="text/coffeescript">
@@ -242,12 +243,6 @@ $(window).load(() ->
 	.prop("tabindex",0)
 	.bind("click",->
 		jump(index + 1)
-		$("#frame video").each(() ->
-			if @paused
-				@.play()
-			else
-				@.pause()
-		)
 	)
 	.bind("contextmenu",-> jump(index - 1) && false)
 	.bind("mousedown",() -> $(@).trigger("touchstart"))
@@ -256,10 +251,22 @@ $(window).load(() ->
 		x = a.clientX
 		y = a.clientY
 
-		id = setTimeout("close(1)",500)
-		false
+		id = setTimeout("close()",500)
 	)
 	.bind("touchend",(a) ->
+		clearTimeout(id)
+		###
+		$("#frame video").each(() ->
+			if @paused
+				@.play()
+				alert("play")
+			else
+				@.pause()
+				alert("play")
+		)
+		###
+	)
+	.bind("touchmove",(a) ->
 		clearTimeout(id)
 	)
 	.bind("mousewheel",(a) ->
@@ -355,11 +362,13 @@ $(window).load(() ->
 	volume = n
 
 	if volume.match("\.mp4$")
+		$.ajaxSetup({async:false})
 		$.getJSON("<?=getenv("SCRIPT_NAME")?>/#{encodeURIComponent(c)}/#{n}/?op=i",(a) ->
-			window.list = undefined
-			open(1)
-			player()
 		)
+		$.ajaxSetup({async:true})
+		window.list = undefined
+		open(1)
+		player()
 		history.replaceState(null,null,"#{location.protocol}//#{location.hostname}/#{c}/#{n}/#{location.search}")
 	else
 		$.getJSON("<?=getenv("SCRIPT_NAME")?>/#{encodeURIComponent(c)}/#{n}/?op=i",(a) ->
@@ -504,11 +513,27 @@ $(window).load(() ->
 
 @player = () ->
 	$("#frame").append(
-		$("<video controls>")
+		$("<video preload=\"auto\" controls data-setup=\"{}\">")
 		.prop("id",0)
+		.prop("class","video-js vjs-default-skin")
 		.prop("src","/direct/#{encodeURIComponent(manga)}/#{encodeURIComponent(volume)}")
+		.attr("width","100%")
+		.attr("height","100%")
 		.show()
+		.css("display","")
 	)
+	videojs($(".video-js")[0],{},->
+	)
+	###
+	a = $("video")[0];
+	a.load()
+	#a.play()
+	a.webkitEnterFullscreen?()
+	a.requestFullScreen?()
+	a.mozRequestFullScreen?()
+	a.webkitRequestFullScreen?()
+	setTimeout("$(\"video\")[0].load();alert(1)",1000);
+	###
 
 @preference = new (class
 	constructor:(@b = 0) ->
@@ -611,6 +636,12 @@ $(window).load(() ->
 			$(@).hide()
 	)
 </script>
+<link href="http://vjs.zencdn.net/4.7/video-js.css" rel="stylesheet">
+<style type="text/css">
+  .vjs-default-skin .vjs-control-bar,
+  .vjs-default-skin .vjs-big-play-button { background: rgba(184,68,68,0.7) }
+  .vjs-default-skin .vjs-slider { background: rgba(184,68,68,0.2333333333333333) }
+</style>
 <style id="common" type="text/css">
 .valign {
 	position: relative;
@@ -631,6 +662,7 @@ html, body {
 	width: 100%;
 	height: 0%;
 	background-color: #382f2f;
+	z-index: 1;
 }
 #navi.img {
 	background-color: #382f2f;
@@ -704,7 +736,23 @@ html, body {
 	height: 100%;
 	overflow-y: scroll;
 	-webkit-overflow-scrolling: touch;
-	z-index: -1;
+	z-index: 0;
+}
+
+#menu::-webkit-scrollbar,#book::-webkit-scrollbar{
+   -webkit-appearance: none;
+}
+
+#menu::-webkit-scrollbar-thumb,#book::-webkit-scrollbar-thumb {
+    background-color: #606060;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    background-clip: content-box;
+}
+
+#menu::-webkit-scrollbar-track,#book::-webkit-scrollbar-track {
+    background-color: #fff4f8;
+    width: 1%;
 }
 
 .grep {
@@ -813,8 +861,8 @@ html, body {
 	position: absolute;
 //	position: relative;
 //	-webkit-touch-callout:none;
-	user-select: none;
-	-webkit-user-select: none;
+//	user-select: none;
+//	-webkit-user-select: none;
 }
 
 #frame.img {
