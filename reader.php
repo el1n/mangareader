@@ -11,9 +11,34 @@
 		case "i":
 			$dir = BOOKSHELF.getenv("PATH_INFO");
 			if(is_dir($dir)){
+#				$r = array(
+#					"c" =>200,
+#					"value" =>usort(
+#						array_map(
+#							function($a){
+#								return(array(
+#									filename =>$a,
+#									m =>filemtime($dir."/".$a)
+#								));
+#							},
+#							array_values(preg_grep("/^(?!\\.).*?(?<!\.zip)$/",scandir($dir)))
+#						),
+#						function($a,$b){
+#							return(strnatcasecmp($a["filename"],$b["filename"]));
+#						}
+#					)
+#				);
 				$r = array(
 					"c" =>200,
-					"value" =>array_values(preg_grep("/^(?!\\.).*?(?<!\.zip)$/",scandir($dir)))
+					"value" =>array_map(
+						function($a){
+							return(array(
+								filename =>$a,
+								m =>filemtime($dir."/".$a)
+							));
+						},
+						array_values(preg_grep("/^(?!\\.).*?(?<!\.zip)$/",scandir($dir)))
+					)
 				);
 			}else{
 				$r = array(
@@ -142,6 +167,7 @@
 <script src="http://www.netcu.de/templates/netcu/js/jquery.touchwipe.min.js" type="text/javascript"></script>
 <script src="http://coffeescript.org/extras/coffee-script.js" type="text/javascript"></script>
 <script src="/lib/js/video-js/4.7.3/video.js" type="text/javascript"></script>
+<script src="/lib/js/natural-compare-lite/min.js" type="text/javascript"></script>
 <script type="text/javascript" charset="UTF-8">
 </script>
 <script type="text/coffeescript">
@@ -306,21 +332,7 @@ $(window).load(() ->
 	.blur(() -> closepreference())
 
 	draw()
-
-	$.getJSON("<?=getenv("SCRIPT_NAME")?>/?op=i",(a) ->
-		for _ in a.value
-			((a) ->
-				$("#menu").append(
-					$("#menu .cloak")
-					.clone(1)
-					.prop("class","book")
-					.find(".thumbnail").css("background-image","url(\"<?=getenv("SCRIPT_NAME")?>/#{encodeURIComponent(_)}/?op=m\")").end()
-					.find(".title span").html(a[2]).end()
-					.find(".author span").html(a[1]).end()
-					.click(() -> load(manga = a[0]))
-				)
-			)(_.match("^((?:Magica Quartet|[^\x00-\x20\x7F])+?) (.+?)$"))
-	)
+	makemenu()
 
 	m = "<?=getenv("PATH_INFO")?>".replace(/^\//,"").split("/")
 	i = parseInt(location.hash.replace(/^#/,""))
@@ -329,6 +341,24 @@ $(window).load(() ->
 	if m[1]?.length > 0
 		read(null,m[1],i)
 )
+
+@makemenu = (sort = "filename") ->
+	$("#menu .book").remove()
+
+	$.getJSON("<?=getenv("SCRIPT_NAME")?>/?op=i",(a) ->
+		for _ in a.value.sort((a,b) -> String.naturalCompare(a[sort],b[sort]))
+			((a) ->
+				$("#menu").append(
+					$("#menu .cloak")
+					.clone(1)
+					.prop("class","book")
+					.find(".thumbnail").css("background-image","url(\"<?=getenv("SCRIPT_NAME")?>/#{encodeURIComponent(_.filename)}/?op=m\")").end()
+					.find(".title span").html(a[2]).end()
+					.find(".author span").html(a[1]).end()
+					.click(() -> load(manga = a[0]))
+				)
+			)(_.filename.match("^((?:Magica Quartet|[^\x00-\x20\x7F])+?) (.+?)$"))
+	)
 
 @load = (c) ->
 	$(".volume").remove()
@@ -341,10 +371,10 @@ $(window).load(() ->
 					.clone(1)
 					.prop("class","volume")
 					.find(".thumbnail").css("background-image","url(\"<?=getenv("SCRIPT_NAME")?>/#{encodeURIComponent(c)}/#{encodeURIComponent(a)}/?op=m\")").end()
-					.find("span:eq(0)").html(_).end()
+					.find("span:eq(0)").html(_.filename).end()
 					.click(() -> read(null,a))
 				)
-			)(_)
+			)(_.filename)
 	)
 
 	if (mode & C_MODE_MASK) == (C_MODE_PHONE|C_MODE_VERTICAL)
@@ -372,7 +402,7 @@ $(window).load(() ->
 		history.replaceState(null,null,"#{location.protocol}//#{location.hostname}/#{c}/#{n}/#{location.search}")
 	else
 		$.getJSON("<?=getenv("SCRIPT_NAME")?>/#{encodeURIComponent(c)}/#{n}/?op=i",(a) ->
-			window.list = a.value
+			window.list = a.value.sort((a,b) -> String.naturalCompare(a.filename,b.filename))
 			open()
 			jump(i);
 		)
@@ -438,17 +468,20 @@ $(window).load(() ->
 
 
 @make = (i = index) ->
-	if $("##{i}").size()
-		console.log("? Image #{i} cached.")
+	if 0 <= i < list.length
+		if $("##{i}").size()
+			console.log("? Image #{i} cached.")
+		else
+			$("#frame").append(
+				$("<img>")
+				.prop("src",C_IMG_NULL)
+				.prop("id",i)
+				.css("background-image","url(\"<?=getenv("SCRIPT_NAME")?>/#{encodeURIComponent(manga)}/#{encodeURIComponent(volume)}/#{encodeURIComponent(list[parseInt(i / (!!(preference.b & F_OPTION_SPLIT) + 1))].filename)}?op=g&s=#{preference.b & F_OPTION_SPLIT}&p=#{i % 2}&w=#{document.body.clientWidth}&h=#{document.body.clientHeight}&c=#{preference.b & F_OPTION_COMPRESS}\")")
+			)
+			console.log("? Image #{i} maked.")
+		return $("##{i}")
 	else
-		$("#frame").append(
-			$("<img>")
-			.prop("src",C_IMG_NULL)
-			.prop("id",i)
-			.css("background-image","url(\"<?=getenv("SCRIPT_NAME")?>/#{encodeURIComponent(manga)}/#{encodeURIComponent(volume)}/#{encodeURIComponent(@list[parseInt(i / (!!(preference.b & F_OPTION_SPLIT) + 1))])}?op=g&s=#{preference.b & F_OPTION_SPLIT}&p=#{i % 2}&w=#{document.body.clientWidth}&h=#{document.body.clientHeight}&c=#{preference.b & F_OPTION_COMPRESS}\")")
-		)
-		console.log("? Image #{i} maked.")
-	return $("##{i}")
+		return $("##{i}")
 
 @jump = (i) ->
 	if list?
@@ -755,7 +788,7 @@ html, body {
     width: 1%;
 }
 
-.grep {
+.grep, .sort {
 	text-align: center;
 	margin: 0.5em;
 	background-color: #fff4f8;
@@ -772,6 +805,20 @@ html, body {
 .grep input {
 	width: 80%;
 	font-size: inherit;
+}
+
+.sort {
+	height: 2.5em;
+}
+
+.sort span {
+	padding: 0.3em;
+	background-color: #ffffff;
+	border: 1px #ffccd4 solid;
+}
+
+.sort span:hover {
+	cursor: pointer;
 }
 
 .book {
@@ -1230,6 +1277,12 @@ body {
 				Grep:
 				<input type="text" onChange="grep()" onKeyUp="grep()">
 			</label>
+		</div>
+		<div class="sort">
+			<span class="valign" onClick="makemenu('filename')">F</span>
+			<span class="valign">T</span>
+			<span class="valign">A</span>
+			<span class="valign" onClick="makemenu('m')">M</span>
 		</div>
 		<div class="cloak">
 			<img class="thumbnail">
