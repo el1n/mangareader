@@ -202,6 +202,11 @@
 @C_CACHE_BEHIND = 1
 @C_IMG_NULL = $("<canvas width=1 height=1 />")[0].toDataURL()
 
+b = 0
+manga = ""
+volume = ""
+index = 0
+
 @nemui = new (class
 	ui:new (class
 		draw:(mode = mode) ->
@@ -299,10 +304,6 @@
 		return("#{a.map(encodeURIComponent).join("/")}?#{("#{k}=#{v}" for k,v of b).join("&")}")
 )()
 
-b = 0
-manga = ""
-volume = ""
-index = 0
 
 $(window).load(() ->
 	$(@).on("orientationchange",() ->
@@ -517,7 +518,7 @@ $(window).load(() ->
 				.prop("src",C_IMG_NULL)
 				.prop("id",i)
 				.css("background-image","url(\"<?=getenv("SCRIPT_NAME")?>/#{
-					img(
+					nemui.getimg(
 						manga
 						volume
 						if preference.b & F_OPTION_REVERSE
