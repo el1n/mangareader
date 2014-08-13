@@ -418,7 +418,7 @@ $(window).load(() ->
 			)(_.filename)
 	)
 
-	if (mode & C_MODE_MASK) == (C_MODE_PHONE|C_MODE_VERTICAL)
+	if (preference.b & C_MODE_MASK) == (C_MODE_PHONE|C_MODE_VERTICAL)
 		$("#main").animate({"left":-$("#menu").width()},500,"easeOutCubic")
 		$("#navi .a").show().animate({"opacity":1.000},500,"easeOutCubic")
 
