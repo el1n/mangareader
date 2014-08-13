@@ -1,6 +1,13 @@
 <?
 	define("BOOKSHELF","../bookshelf");
 
+	define("F_OPTION_THUMBNAIL",0x00010000);
+	define("F_OPTION_COMPRESS",0x00020000);
+	define("F_OPTION_SPLIT",0x00040000);
+	define("F_OPTION_SEQUENTIAL",0x00080000);
+	define("F_OPTION_REVERSE",0x00100000);
+	define("F_OPTION_SLIDE",0x00200000);
+
 	$memcached = new Memcached();
 	$memcached->setOption(Memcached::OPT_BINARY_PROTOCOL,1);
 	$memcached->setOption(Memcached::OPT_COMPRESSION,1);
@@ -32,9 +39,16 @@
 					"c" =>200,
 					"value" =>array_map(
 						function($a){
+							preg_match_all("/(?:^(.+?) |(\[(.*?)\])(?=(?:\[.*?\])*?$))/",$a,$m);
+
 							return(array(
 								filename =>$a,
-								m =>filemtime($dir."/".$a)
+#								m =>filemtime($dir."/".$a)
+								m =>filemtime(BOOKSHELF.getenv("PATH_INFO")."/".$a),
+								w =>$m[3][1],
+								i =>$m[3][2] ? $m[3][2] : $m[3][1],
+								t =>$m[1][0],
+								a =>implode(" / ",array_values(array_filter(array($m[3][1],$m[3][2],$m[3][3]),strlen)))
 							));
 						},
 						array_values(preg_grep("/^(?!\\.).*?(?<!\.zip)$/",scandir($dir)))
@@ -164,7 +178,7 @@
 <meta http-equiv="Content-Type" content="text/html;charset=UTF-8">
 <script src="//cdnjs.cloudflare.com/ajax/libs/jquery/1.11.1/jquery.min.js" type="text/javascript"></script>
 <script src="//cdnjs.cloudflare.com/ajax/libs/jquery-easing/1.3/jquery.easing.min.js" type="text/javascript"></script>
-<script src="http://www.netcu.de/templates/netcu/js/jquery.touchwipe.min.js" type="text/javascript"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/jquery.touchswipe/1.6.4/jquery.touchSwipe.min.js" type="text/javascript"></script>
 <script src="//cdnjs.cloudflare.com/ajax/libs/coffee-script/1.7.1/coffee-script.min.js" type="text/javascript"></script>
 <script src="/lib/js/natural-compare-lite/1.2.2/min.js" type="text/javascript"></script>
 <script type="text/javascript" charset="UTF-8">
@@ -182,76 +196,118 @@
 @F_OPTION_COMPRESS = 0x00020000
 @F_OPTION_SPLIT = 0x00040000
 @F_OPTION_SEQUENTIAL = 0x00080000
-@F_OPTION_SLIDE = 0x00100000
+@F_OPTION_REVERSE = 0x00100000
+@F_OPTION_SLIDE = 0x00200000
 @C_CACHE_AHEAD = 3
 @C_CACHE_BEHIND = 1
 @C_IMG_NULL = $("<canvas width=1 height=1 />")[0].toDataURL()
+
+@nemui = new (class
+	ui:new (class
+		draw:(mode = mode) ->
+			switch mode & C_MODE_MASK
+				when C_MODE_UNKNOWN
+					if navigator.userAgent.match(/Android.*Mobile|iPhone/)
+						if $(window).width() / $(window).height() > 1
+							@draw(C_MODE_PHONE|C_MODE_VERTICAL|F_OPTION_COMPRESS)
+						else
+							@draw(C_MODE_PHONE|C_MODE_HORIZON)
+					else if navigator.userAgent.match(/Android|iPad/)
+						if $(window).width() / $(window).height() > 1
+							@draw(C_MODE_TABLET|C_MODE_VERTICAL|F_OPTION_COMPRESS)
+						else
+							@draw(C_MODE_TABLET|C_MODE_HORIZON)
+					else
+						@draw(C_MODE_PC)
+		
+				when C_MODE_PC|C_MODE_VERTICAL,C_MODE_PC|C_MODE_HORIZON
+					$("#MODE_PC")[0].disabled = 0
+					$("#MODE_PHONE_VERTICAL")[0].disabled = 1
+					$("#MODE_PHONE_HORIZON")[0].disabled = 1
+					$("#MODE_TABLET_VERTICAL")[0].disabled = 1
+					$("#MODE_TABLET_HORIZON")[0].disabled = 1
+				when C_MODE_NOTEBOOK|C_MODE_VERTICAL,C_MODE_NOTEBOOK|C_MODE_HORIZON
+					$("#MODE_PC")[0].disabled = 0
+					$("#MODE_PHONE_VERTICAL")[0].disabled = 1
+					$("#MODE_PHONE_HORIZON")[0].disabled = 1
+					$("#MODE_TABLET_VERTICAL")[0].disabled = 1
+					$("#MODE_TABLET_HORIZON")[0].disabled = 1
+				when C_MODE_PHONE|C_MODE_VERTICAL
+					$("#MODE_PC")[0].disabled = 1
+					$("#MODE_PHONE_VERTICAL")[0].disabled = 0
+					$("#MODE_PHONE_HORIZON")[0].disabled = 1
+					$("#MODE_TABLET_VERTICAL")[0].disabled = 1
+					$("#MODE_TABLET_HORIZON")[0].disabled = 1
+				when C_MODE_PHONE|C_MODE_HORIZON
+					$("#MODE_PC")[0].disabled = 1
+					$("#MODE_PHONE_VERTICAL")[0].disabled = 1
+					$("#MODE_PHONE_HORIZON")[0].disabled = 0
+					$("#MODE_TABLET_VERTICAL")[0].disabled = 1
+					$("#MODE_TABLET_HORIZON")[0].disabled = 1
+				when C_MODE_TABLET|C_MODE_VERTICAL
+					$("#MODE_PC")[0].disabled = 1
+					$("#MODE_PHONE_VERTICAL")[0].disabled = 1
+					$("#MODE_PHONE_HORIZON")[0].disabled = 1
+					$("#MODE_TABLET_VERTICAL")[0].disabled = 0
+					$("#MODE_TABLET_HORIZON")[0].disabled = 1
+				when C_MODE_TABLET|C_MODE_HORIZON
+					$("#MODE_PC")[0].disabled = 1
+					$("#MODE_PHONE_VERTICAL")[0].disabled = 1
+					$("#MODE_PHONE_HORIZON")[0].disabled = 1
+					$("#MODE_TABLET_VERTICAL")[0].disabled = 1
+					$("#MODE_TABLET_HORIZON")[0].disabled = 0
+				else
+					console.log("! Unknown mode #{mode}.")
+			console.log("? mode=#{mode}")
+	)()
+	menu:new (class
+		draw:(key = "filename",order) ->
+			$("#menu .book").remove()
+		
+			$.getJSON("<?=getenv("SCRIPT_NAME")?>/?op=i",(a) ->
+				for _ in a.value.sort((a,b) -> String.naturalCompare(a[key],b[key]))
+					((a) ->
+						$("#menu").append(
+							$("#menu .cloak")
+							.clone(1)
+							.prop("class","book")
+							.find(".thumbnail").css("background-image","url(\"<?=getenv("SCRIPT_NAME")?>/#{nemui.getimg(a.filename,{op:"m"})}\")").end()
+							.find(".title span").html(a.t).end()
+							.find(".author span").html(a.a).end()
+							.click(() -> load(manga = a.filename))
+						)
+					)(_)
+			)
+		grep:() ->
+			$("#menu .book").each(->
+				cnv = (a) ->
+					a = a.toUpperCase()
+					a = a.replace(/[\u3041-\u3096]/g,(a) -> String.fromCharCode(a.charCodeAt(0) + 0x60))
+		
+				if cnv($(@).find("span").html()).indexOf(cnv($(".grep input").val())) != -1
+					$(@).show()
+				else
+					$(@).hide()
+			)
+		sort:(key = "filename",order) ->
+			console.log("a")
+			$("#menu .book").sort((a,b) -> String.naturalCompare($(a).find(".title span").html(),$(b).find(".title span").html())).each(->
+				$(@).appendTo("#menu")
+			)
+	)()
+	getimg:(a...,b) ->
+		return("#{a.map(encodeURIComponent).join("/")}?#{("#{k}=#{v}" for k,v of b).join("&")}")
+)()
 
 b = 0
 manga = ""
 volume = ""
 index = 0
 
-@draw = (@mode = @mode) ->
-	switch mode & C_MODE_MASK
-		when C_MODE_UNKNOWN
-			if navigator.userAgent.match(/Android.*Mobile|iPhone/)
-				if $(window).width() < $(window).height()
-					draw(C_MODE_PHONE|C_MODE_VERTICAL|F_OPTION_COMPRESS)
-				else
-					draw(C_MODE_PHONE|C_MODE_HORIZON)
-			else if navigator.userAgent.match(/Android|iPad/)
-				if $(window).width() < $(window).height()
-					draw(C_MODE_TABLET|C_MODE_VERTICAL|F_OPTION_COMPRESS)
-				else
-					draw(C_MODE_TABLET|C_MODE_HORIZON)
-			else
-				draw(C_MODE_PC)
-
-		when C_MODE_PC|C_MODE_VERTICAL,C_MODE_PC|C_MODE_HORIZON
-			$("#MODE_PC")[0].disabled = 0
-			$("#MODE_PHONE_VERTICAL")[0].disabled = 1
-			$("#MODE_PHONE_HORIZON")[0].disabled = 1
-			$("#MODE_TABLET_VERTICAL")[0].disabled = 1
-			$("#MODE_TABLET_HORIZON")[0].disabled = 1
-		when C_MODE_NOTEBOOK|C_MODE_VERTICAL,C_MODE_NOTEBOOK|C_MODE_HORIZON
-			$("#MODE_PC")[0].disabled = 0
-			$("#MODE_PHONE_VERTICAL")[0].disabled = 1
-			$("#MODE_PHONE_HORIZON")[0].disabled = 1
-			$("#MODE_TABLET_VERTICAL")[0].disabled = 1
-			$("#MODE_TABLET_HORIZON")[0].disabled = 1
-		when C_MODE_PHONE|C_MODE_VERTICAL
-			$("#MODE_PC")[0].disabled = 1
-			$("#MODE_PHONE_VERTICAL")[0].disabled = 0
-			$("#MODE_PHONE_HORIZON")[0].disabled = 1
-			$("#MODE_TABLET_VERTICAL")[0].disabled = 1
-			$("#MODE_TABLET_HORIZON")[0].disabled = 1
-		when C_MODE_PHONE|C_MODE_HORIZON
-			$("#MODE_PC")[0].disabled = 1
-			$("#MODE_PHONE_VERTICAL")[0].disabled = 1
-			$("#MODE_PHONE_HORIZON")[0].disabled = 0
-			$("#MODE_TABLET_VERTICAL")[0].disabled = 1
-			$("#MODE_TABLET_HORIZON")[0].disabled = 1
-		when C_MODE_TABLET|C_MODE_VERTICAL
-			$("#MODE_PC")[0].disabled = 1
-			$("#MODE_PHONE_VERTICAL")[0].disabled = 1
-			$("#MODE_PHONE_HORIZON")[0].disabled = 1
-			$("#MODE_TABLET_VERTICAL")[0].disabled = 0
-			$("#MODE_TABLET_HORIZON")[0].disabled = 1
-		when C_MODE_TABLET|C_MODE_HORIZON
-			$("#MODE_PC")[0].disabled = 1
-			$("#MODE_PHONE_VERTICAL")[0].disabled = 1
-			$("#MODE_PHONE_HORIZON")[0].disabled = 1
-			$("#MODE_TABLET_VERTICAL")[0].disabled = 1
-			$("#MODE_TABLET_HORIZON")[0].disabled = 0
-		else
-			console.log("! Unknown mode #{mode}.")
-	console.log("? mode=#{mode}")
-
 $(window).load(() ->
 	$(@).on("orientationchange",() ->
 		$("body").hide().css("opacity",0);
-		draw(C_MODE_UNKNOWN)
+		nemui.ui.draw(C_MODE_UNKNOWN)
 		$("body")
 		.show()
 		.animate({"opacity":1.000},500,"easeOutCubic")
@@ -321,17 +377,21 @@ $(window).load(() ->
 			else
 				console.log("keyCode 0x#{a.keyCode.toString(16)} (#{a.keyCode})")
 	)
-	.touchwipe(
-		wipeLeft:() -> jump(index - 1)
-		wipeRight:() -> jump(index + 1)
+	.swipe(
+		swipe:() -> jump(index + 1)
+		swipeLeft:() -> jump(index - 1)
 	)
+#	.touchwipe(
+#		wipeLeft:() -> jump(index - 1)
+#		wipeRight:() -> jump(index + 1)
+#	)
 
 	$("#preference")
 	#.prop("tabindex",1)
 	.blur(() -> closepreference())
 
-	draw()
-	makemenu()
+	nemui.ui.draw()
+	nemui.menu.draw()
 
 	m = "<?=getenv("PATH_INFO")?>".replace(/^\//,"").split("/")
 	i = parseInt(location.hash.replace(/^#/,""))
@@ -340,24 +400,6 @@ $(window).load(() ->
 	if m[1]?.length > 0
 		read(null,m[1],i)
 )
-
-@makemenu = (sort = "filename") ->
-	$("#menu .book").remove()
-
-	$.getJSON("<?=getenv("SCRIPT_NAME")?>/?op=i",(a) ->
-		for _ in a.value.sort((a,b) -> String.naturalCompare(a[sort],b[sort]))
-			((a) ->
-				$("#menu").append(
-					$("#menu .cloak")
-					.clone(1)
-					.prop("class","book")
-					.find(".thumbnail").css("background-image","url(\"<?=getenv("SCRIPT_NAME")?>/#{encodeURIComponent(_.filename)}/?op=m\")").end()
-					.find(".title span").html(a[2]).end()
-					.find(".author span").html(a[1]).end()
-					.click(() -> load(manga = a[0]))
-				)
-			)(_.filename.match("^((?:Magica Quartet|[^\x00-\x20\x7F])+?) (.+?)$"))
-	)
 
 @load = (c) ->
 	$(".volume").remove()
@@ -380,6 +422,7 @@ $(window).load(() ->
 		$("#main").animate({"left":-$("#menu").width()},500,"easeOutCubic")
 		$("#navi .a").show().animate({"opacity":1.000},500,"easeOutCubic")
 
+	console.log("#{c}")
 	history.replaceState(null,null,"#{location.protocol}//#{location.hostname}/#{c}/#{location.search}")
 
 @back = () ->
@@ -428,8 +471,6 @@ $(window).load(() ->
 		.removeClass("vid")
 		navi.change("img")
 
-
-@hogehoge = () -> close()
 @close = (a) ->
 	navi.change("none")
 
@@ -475,7 +516,23 @@ $(window).load(() ->
 				$("<img>")
 				.prop("src",C_IMG_NULL)
 				.prop("id",i)
-				.css("background-image","url(\"<?=getenv("SCRIPT_NAME")?>/#{encodeURIComponent(manga)}/#{encodeURIComponent(volume)}/#{encodeURIComponent(list[parseInt(i / (!!(preference.b & F_OPTION_SPLIT) + 1))].filename)}?op=g&s=#{preference.b & F_OPTION_SPLIT}&p=#{i % 2}&w=#{document.body.clientWidth}&h=#{document.body.clientHeight}&c=#{preference.b & F_OPTION_COMPRESS}\")")
+				.css("background-image","url(\"<?=getenv("SCRIPT_NAME")?>/#{
+					img(
+						manga
+						volume
+						if preference.b & F_OPTION_REVERSE
+							list[list.length - 1 - parseInt(i / (!!(preference.b & F_OPTION_SPLIT) + 1))].filename
+						else
+							list[parseInt(i / (!!(preference.b & F_OPTION_SPLIT) + 1))].filename
+						{
+							"op":"g"
+							"s":preference.b & F_OPTION_SPLIT
+							"p":i % 2
+							"w":document.body.clientWidth
+							"h":document.body.clientHeight
+							"c":preference.b & F_OPTION_COMPRESS
+						}
+					)}\")")
 			)
 			console.log("? Image #{i} maked.")
 		return $("##{i}")
@@ -583,6 +640,8 @@ $(window).load(() ->
 				"":F_OPTION_SPLIT
 			"Sequential Read":
 				"":F_OPTION_SEQUENTIAL
+			"Reverse Read":
+				"":F_OPTION_REVERSE
 			"Slide Effect":
 				"":F_OPTION_SLIDE
 		}
@@ -623,7 +682,7 @@ $(window).load(() ->
 			@b = @b & ~$(a.target).prop("name") | $(a.target).prop("value")
 		else
 			@b = @b & ~$(a.target).prop("name")
-		draw(@b)
+		nemui.ui.draw(@b)
 		history.replaceState(null,null,"#{location.protocol}//#{location.hostname}#{location.pathname}?b=#{@b}")
 )((location.search.match("b=(\\d+)") || [0,F_OPTION_THUMBNAIL|F_OPTION_SEQUENTIAL])[1])
 
@@ -655,25 +714,7 @@ $(window).load(() ->
 			location.hash
 		]
 )((location.search.match("b=(\\d+)") || [0,F_OPTION_THUMBNAIL|F_OPTION_SEQUENTIAL])[1])
-
-@grep = () ->
-	$(".book").each(->
-		cnv = (a) ->
-			a = a.toUpperCase()
-			a = a.replace(/[\u3041-\u3096]/g,(a) -> String.fromCharCode(a.charCodeAt(0) + 0x60))
-
-		if cnv($(@).find("span").html()).indexOf(cnv($(".grep input").val())) != -1
-			$(@).show()
-		else
-			$(@).hide()
-	)
 </script>
-<link href="http://vjs.zencdn.net/4.7/video-js.css" rel="stylesheet">
-<style type="text/css">
-  .vjs-default-skin .vjs-control-bar,
-  .vjs-default-skin .vjs-big-play-button { background: rgba(184,68,68,0.7) }
-  .vjs-default-skin .vjs-slider { background: rgba(184,68,68,0.2333333333333333) }
-</style>
 <style id="common" type="text/css">
 .valign {
 	position: relative;
@@ -811,6 +852,7 @@ html, body {
 }
 
 .sort span {
+	border-radius: 0.5em;
 	padding: 0.3em;
 	background-color: #ffffff;
 	border: 1px #ffccd4 solid;
@@ -1274,14 +1316,13 @@ body {
 		<div class="grep">
 			<label>
 				Grep:
-				<input type="text" onChange="grep()" onKeyUp="grep()">
+				<input type="text" onChange="nemui.menu.grep()" onKeyUp="nemui.menu.grep()">
 			</label>
 		</div>
 		<div class="sort">
-			<span class="valign" onClick="makemenu('filename')">F</span>
-			<span class="valign">T</span>
-			<span class="valign">A</span>
-			<span class="valign" onClick="makemenu('m')">M</span>
+			<span class="valign" onClick="nemui.menu.draw('filename')">N</span>
+			<span class="valign" onClick="nemui.menu.draw('a')">A</span>
+			<span class="valign" onClick="nemui.menu.draw('m')">M</span>
 		</div>
 		<div class="cloak">
 			<img class="thumbnail">
