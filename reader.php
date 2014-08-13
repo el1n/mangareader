@@ -39,7 +39,7 @@
 					"c" =>200,
 					"value" =>array_map(
 						function($a){
-							preg_match_all("/(?:^(.+?) |(\[(.*?)\])(?=(?:\[.*?\])*?$))/",$a,$m);
+							preg_match_all("/(?:^(.+?) |(\[(.*?)\]))(?=(?:\[[^\[\]]*?\])*?$)/",$a,$m);
 
 							return(array(
 								filename =>$a,
