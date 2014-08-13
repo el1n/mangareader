@@ -279,6 +279,7 @@ index = 0
 							.find(".thumbnail").css("background-image","url(\"<?=getenv("SCRIPT_NAME")?>/#{nemui.getimg(a.filename,{op:"m"})}\")").end()
 							.find(".title span").html(a.t).end()
 							.find(".author span").html(a.a).end()
+							.find(".mtime span").html("#{(new Date(a.m * 1000)).getMonth()}/#{(new Date(a.m * 1000)).getDay()}").end()
 							.click(() -> load(manga = a.filename))
 						)
 					)(_)
@@ -886,10 +887,18 @@ html, body {
 }
 
 .book .author{
-	width: 100%;
+//	width: 100%;
 	height: 33%;
 	color: #888888;
 	font-size: 80%;
+	float: left;
+}
+
+.book .mtime{
+	height: 33%;
+	color: #aaaaaa;
+	font-size: 60%;
+	float: right;
 }
 
 .book .title span, .book .author span {
@@ -1332,6 +1341,9 @@ body {
 					<span class="valign"></span>
 				</div>
 				<div class="author">
+					<span class="valign"></span>
+				</div>
+				<div class="mtime">
 					<span class="valign"></span>
 				</div>
 			</div>
