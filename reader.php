@@ -176,9 +176,11 @@
 <html>
 <head>
 <meta http-equiv="Content-Type" content="text/html;charset=UTF-8">
+<meta name="viewport" content="user-scalable=no" />
 <script src="//cdnjs.cloudflare.com/ajax/libs/jquery/1.11.1/jquery.min.js" type="text/javascript"></script>
 <script src="//cdnjs.cloudflare.com/ajax/libs/jquery-easing/1.3/jquery.easing.min.js" type="text/javascript"></script>
-<script src="//cdnjs.cloudflare.com/ajax/libs/jquery.touchswipe/1.6.4/jquery.touchSwipe.min.js" type="text/javascript"></script>
+<!--<script src="//cdnjs.cloudflare.com/ajax/libs/jquery.touchswipe/1.6.4/jquery.touchSwipe.min.js" type="text/javascript"></script>-->
+<script src="/lib/js/jquery.touchSwipe.min.js" type="text/javascript"></script>
 <script src="//cdnjs.cloudflare.com/ajax/libs/coffee-script/1.7.1/coffee-script.min.js" type="text/javascript"></script>
 <script src="/lib/js/natural-compare-lite/1.2.2/min.js" type="text/javascript"></script>
 <script type="text/javascript" charset="UTF-8">
@@ -206,8 +208,8 @@
 @nemui = new class
 	ui:new class extends @
 		draw:(@b) ->
-#			if @b?
-#				@preference.set(@b)
+			if @b?
+				@preference.set(@b)
 
 			switch @b & C_MODE_MASK
 				when C_MODE_UNKNOWN
@@ -331,7 +333,8 @@
 							.end()
 						.find(".input").click(-> $(@).parents(".field").find("input").click()).end()
 					)
-		set:(b) ->
+		set:(b,mask) ->
+			@b &= ~mask
 			@b |= b
 			for _ in $("#preference input")
 				$(_).prop("checked",@b & $(_).val())
@@ -424,7 +427,7 @@
 					)(_.filename)
 			)
 		
-			if (@ui.b & C_MODE_MASK) == (C_MODE_PHONE|C_MODE_VERTICAL)
+			if (@preference.b & C_MODE_MASK) == (C_MODE_PHONE|C_MODE_VERTICAL)
 				$("#main").animate({"left":-$("#menu").width()},500,"easeOutCubic")
 				@navi.change("slide")
 		
@@ -595,30 +598,30 @@ $(window).load(() ->
 #	.bind("click",-> nemui.reader.jump(nemui.reader.index + 1))
 #	.bind("contextmenu",-> !!(nemui.reader.jump(nemui.reader.index - 1) && false))
 	.bind("contextmenu",-> false)
-	.bind("mousedown",() -> $(@).trigger("touchstart"))
-	.bind("mouseup",() -> $(@).trigger("touchend"))
-	.bind("touchstart",(a) ->
-		x = a.clientX
-		y = a.clientY
-
-		id = setTimeout("nemui.reader.close(1)",500)
-	)
-	.bind("touchend",(a) ->
-		clearTimeout(id)
-		###
-		$("#frame video").each(() ->
-			if @paused
-				@.play()
-				alert("play")
-			else
-				@.pause()
-				alert("play")
-		)
-		###
-	)
-	.bind("touchmove",(a) ->
-		clearTimeout(id)
-	)
+#	.bind("mousedown",() -> $(@).trigger("touchstart"))
+#	.bind("mouseup",() -> $(@).trigger("touchend"))
+#	.bind("touchstart",(a) ->
+#		x = a.clientX
+#		y = a.clientY
+#
+#		id = setTimeout("nemui.reader.close(1)",500)
+#	)
+#	.bind("touchend",(a) ->
+#		clearTimeout(id)
+#		###
+#		$("#frame video").each(() ->
+#			if @paused
+#				@.play()
+#				alert("play")
+#			else
+#				@.pause()
+#				alert("play")
+#		)
+#		###
+#	)
+#	.bind("touchmove",(a) ->
+#		clearTimeout(id)
+#	)
 	.bind("mousewheel",(a) ->
 		if a.originalEvent.wheelDelta < 0
 			nemui.reader.jump(nemui.reader.index + 1)
@@ -633,7 +636,7 @@ $(window).load(() ->
 	)
 	.keydown((a) ->
 		switch a.keyCode
-			when 0x25,0x22,0x6b,0x41,0x57
+			when 0x25,0x22,0x6b,0x41,0x57,0x20
 				nemui.reader.jump(nemui.reader.index + 1)
 			when 0x27,0x21,0x6d,0x44,0x53
 				nemui.reader.jump(nemui.reader.index - 1)
@@ -659,6 +662,7 @@ $(window).load(() ->
 					alert("! Unknown button #{ev.button}.")
 		swipeRight:() -> nemui.reader.jump(nemui.reader.index + 1)
 		swipeLeft:() -> nemui.reader.jump(nemui.reader.index - 1)
+		hold:() -> nemui.reader.close(1)
 	)
 #	.touchwipe(
 #		wipeLeft:() -> nemui.reader.jump(nemui.reader.index - 1)
@@ -1035,7 +1039,7 @@ html, body {
 }
 
 #preference .label {
-	width: 45%;
+	width: 40%;
 	min-width: 0%;
 	//max-width: 90%;
 	word-wrap: normal;
@@ -1043,7 +1047,7 @@ html, body {
 	float: left;
 }
 #preference .value {
-	width: 10%;
+	width: 15%;
 	height: 100%;
 	float: left;
 }
@@ -1235,10 +1239,10 @@ body {
 }
 
 #menu {
-	width: 60%;
+	width: 40%;
 }
 #book {
-	width: 40%;
+	width: 60%;
 }
 
 #frame.vid {
