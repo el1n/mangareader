@@ -176,13 +176,12 @@
 <html>
 <head>
 <meta http-equiv="Content-Type" content="text/html;charset=UTF-8">
-<meta name="viewport" content="user-scalable=no" />
+<meta name="viewport" content="user-scalable=no">
 <script src="//cdnjs.cloudflare.com/ajax/libs/jquery/1.11.1/jquery.min.js" type="text/javascript"></script>
 <script src="//cdnjs.cloudflare.com/ajax/libs/jquery-easing/1.3/jquery.easing.min.js" type="text/javascript"></script>
-<!--<script src="//cdnjs.cloudflare.com/ajax/libs/jquery.touchswipe/1.6.4/jquery.touchSwipe.min.js" type="text/javascript"></script>-->
-<script src="/lib/js/jquery.touchSwipe.min.js" type="text/javascript"></script>
-<script src="//cdnjs.cloudflare.com/ajax/libs/coffee-script/1.7.1/coffee-script.min.js" type="text/javascript"></script>
-<script src="/lib/js/natural-compare-lite/1.2.2/min.js" type="text/javascript"></script>
+<script src="/lib/js/jquery.touchswipe/1.6.6/jquery.touchSwipe.min.js" type="text/javascript"></script>
+<script src="/lib/js/coffee-script/1.8.0/coffee-script.js" type="text/javascript"></script>
+<script src="/lib/js/natural-compare-lite/1.2.1/min.js" type="text/javascript"></script>
 <script type="text/javascript" charset="UTF-8">
 </script>
 <script type="text/coffeescript">
