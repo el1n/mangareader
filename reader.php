@@ -448,7 +448,7 @@
 				$("#frame,#navi")
 				.addClass("img")
 				.removeClass("vid")
-				navi.change("img")
+				@navi.change("img")
 
 				@jump(i);
 			)
@@ -517,7 +517,7 @@
 								@com
 								@vol
 								if @preference.b & F_OPTION_REVERSE
-									@list[list.length - 1 - parseInt(i / (!!(@preference.b & F_OPTION_SPLIT) + 1))].filename
+									@list[@list.length - 1 - parseInt(i / (!!(@preference.b & F_OPTION_SPLIT) + 1))].filename
 								else
 									@list[parseInt(i / (!!(@preference.b & F_OPTION_SPLIT) + 1))].filename
 								{
@@ -536,9 +536,9 @@
 				return $("##{i}")
 		close:(i) ->
 			if (@ui.b & C_MODE_MASK) == (C_MODE_PHONE|C_MODE_VERTICAL)
-				navi.change("slide")
+				@navi.change("slide")
 			else
-				navi.change("none")
+				@navi.change("none")
 		
 			if !i
 				$("#frame")
@@ -592,10 +592,9 @@ $(window).load(() ->
 
 	$("#frame")
 	.prop("tabindex",0)
-#	.bind("click",->
-#		nemui.reader.jump(nemui.reader.index + 1)
-#	)
-	.bind("contextmenu",-> !!(nemui.reader.jump(nemui.reader.index - 1) && false))
+#	.bind("click",-> nemui.reader.jump(nemui.reader.index + 1))
+#	.bind("contextmenu",-> !!(nemui.reader.jump(nemui.reader.index - 1) && false))
+	.bind("contextmenu",-> false)
 	.bind("mousedown",() -> $(@).trigger("touchstart"))
 	.bind("mouseup",() -> $(@).trigger("touchend"))
 	.bind("touchstart",(a) ->
@@ -648,7 +647,16 @@ $(window).load(() ->
 				console.log("keyCode 0x#{a.keyCode.toString(16)} (#{a.keyCode})")
 	)
 	.swipe(
-		click:() -> nemui.reader.jump(nemui.reader.index + 1)
+		click:(ev) ->
+			switch ev.button
+				when 0
+					nemui.reader.jump(nemui.reader.index + 1)
+				when 2
+					nemui.reader.jump(nemui.reader.index - 1)
+				when undefined
+					nemui.reader.jump(nemui.reader.index + 1)
+				else
+					alert("! Unknown button #{ev.button}.")
 		swipeRight:() -> nemui.reader.jump(nemui.reader.index + 1)
 		swipeLeft:() -> nemui.reader.jump(nemui.reader.index - 1)
 	)
