@@ -76,7 +76,7 @@
 			if(!$r = $memcached->get($file)){
 				$r = new Imagick();
 				if(is_file($file)){
-					switch(pathinfo($file,PATHINFO_EXTENSION)){
+					switch(strtolower(pathinfo($file,PATHINFO_EXTENSION))){
 						case "bmp":
 						case "gif":
 						case "jpeg":
@@ -194,37 +194,40 @@
 @C_MODE_HORIZON = 0x0200
 @F_OPTION_THUMBNAIL = 0x00010000
 @F_OPTION_COMPRESS = 0x00020000
-@F_OPTION_SPLIT = 0x00040000
-@F_OPTION_SEQUENTIAL = 0x00080000
+@F_OPTION_MINIMIZE = 0x00020000
+@F_OPTION_SPLIT = 0x00080000
 @F_OPTION_REVERSE = 0x00100000
 @F_OPTION_SLIDE = 0x00200000
+@F_OPTION_SEQUENTIAL = 0x00400000
 @C_CACHE_AHEAD = 3
 @C_CACHE_BEHIND = 1
 @C_IMG_NULL = $("<canvas width=1 height=1 />")[0].toDataURL()
 
-b = 0
-manga = ""
-volume = ""
-index = 0
+@nemui = new class
+	ui:new class extends @
+		draw:(@b) ->
+#			if @b?
+#				@preference.set(@b)
 
-@nemui = new (class
-	ui:new (class
-		draw:(mode = mode) ->
-			switch mode & C_MODE_MASK
+			switch @b & C_MODE_MASK
 				when C_MODE_UNKNOWN
+					#alert("#{$(window).width()}x#{$(window).height()}x1")
+					#alert("#{$("body").width()}x#{$("body").height()}x2")
+					#alert("#{screen.width}x#{screen.height}x2")
 					if navigator.userAgent.match(/Android.*Mobile|iPhone/)
-						if $(window).width() / $(window).height() > 1
+						if $(window).width() / $(window).height() < 1
+						#if screen.width / screen.height < 1
 							@draw(C_MODE_PHONE|C_MODE_VERTICAL|F_OPTION_COMPRESS)
 						else
 							@draw(C_MODE_PHONE|C_MODE_HORIZON)
 					else if navigator.userAgent.match(/Android|iPad/)
-						if $(window).width() / $(window).height() > 1
+						if $(window).width() / $(window).height() < 1
+						#if screen.width / screen.height < 1
 							@draw(C_MODE_TABLET|C_MODE_VERTICAL|F_OPTION_COMPRESS)
 						else
 							@draw(C_MODE_TABLET|C_MODE_HORIZON)
 					else
 						@draw(C_MODE_PC)
-		
 				when C_MODE_PC|C_MODE_VERTICAL,C_MODE_PC|C_MODE_HORIZON
 					$("#MODE_PC")[0].disabled = 0
 					$("#MODE_PHONE_VERTICAL")[0].disabled = 1
@@ -262,25 +265,129 @@ index = 0
 					$("#MODE_TABLET_VERTICAL")[0].disabled = 1
 					$("#MODE_TABLET_HORIZON")[0].disabled = 0
 				else
-					console.log("! Unknown mode #{mode}.")
-			console.log("? mode=#{mode}")
-	)()
-	menu:new (class
+					console.log("! Unknown mode #{@b}.")
+			console.log("? mode=#{@b}")
+	url:new class extends @
+		set:(a...) ->
+			url = [
+				location.origin
+				location.pathname
+				location.search
+				location.hash
+			]
+
+			for _ in a
+				if _.match(/^\//)
+					url[1] = _
+				else if _.match(/^\?/)
+					if _.length > 1
+						url[2] = _
+					else
+						url[2] = ""
+				else if _.match(/^\#/)
+					if _.length > 1
+						url[3] = _
+					else
+						url[3] = ""
+				else
+					console.log("! Invalid parameter #{_}")
+			history.replaceState(null,null,url.join(""))
+	preference:new class extends @
+		constructor:(@b = (location.search.match("b=(\\d+)") || [0,F_OPTION_THUMBNAIL|F_OPTION_SEQUENTIAL])[1]) ->
+			for param,v of {
+#				"Display Mode":
+#					"Desktop":C_MODE_PC
+#					"Notebook":C_MODE_NOTEBOOK
+#					"Phone":C_MODE_PHONE
+#					"Tablet":C_MODE_TABLET
+				"Show Thumbnails":
+					"":F_OPTION_THUMBNAIL
+				"Compression/Minimize":
+					"":F_OPTION_COMPRESS
+				"Horizontal Split":
+					"":F_OPTION_SPLIT
+				"Sequential Read":
+					"":F_OPTION_SEQUENTIAL
+				"Reverse Read":
+					"":F_OPTION_REVERSE
+				"Slide Effect":
+					"":F_OPTION_SLIDE
+			}
+				mask = Object.keys(v).reduce(((a,b) -> a | v[b]),0)
+				console.log(mask)
+				for k,b of v
+					$("#preference").append(
+						$("#preference .cloak")
+						.clone(1)
+						.removeClass("cloak")
+						.find(".label:eq(0)").html(param).end()
+						.find(".label:eq(1)").html(k).end()
+						.find("input")
+							.prop("type",(["radio","checkbox"])[!(Object.keys(v).length - 1) + 0])
+							.prop("name",mask)
+							.prop("value",b)
+							.prop("checked",@b & b)
+							.change(=> @update(arguments...))
+							.end()
+						.find(".input").click(-> $(@).parents(".field").find("input").click()).end()
+					)
+		set:(b) ->
+			@b |= b
+			for _ in $("#preference input")
+				$(_).prop("checked",@b & $(_).val())
+		open:() ->
+			$("#preference")
+			.focus()
+			.show()
+			.animate({"opacity":0.900},500,"easeOutCubic")
+		close:() ->
+			$("#preference")
+			.animate({"opacity":0.000},500,"easeOutCubic",-> $(@).hide())
+		toggle:() ->
+			if $("#preference").css("display") == "none"
+				@open()
+			else
+				@close()
+		update:(a) ->
+			if $(a.target).prop("checked")
+				@b = @b & ~$(a.target).prop("name") | $(a.target).prop("value")
+			else
+				@b = @b & ~$(a.target).prop("name")
+			@ui.draw(@b)
+			@url.set("?b=#{@b}")
+	navi:new class extends @
+		constructor:() ->
+			@change("none")
+		change:(a) ->
+			$("#navi")
+			.removeClass("none")
+			.removeClass("slide")
+			.removeClass("img")
+			.removeClass("vid")
+			.addClass(a)
+	
+			$("#navi div:NOT(.#{a})")
+			.hide()
+			$("#navi div.#{a}:NOT(.cloak)")
+			.prop("opacity",0)
+			.show()
+			.animate({"opacity":1.000},500,"easeOutCubic")
+	menu:new class extends @
 		draw:(key = "filename",order) ->
 			$("#menu .book").remove()
 		
-			$.getJSON("<?=getenv("SCRIPT_NAME")?>/?op=i",(a) ->
+			$.getJSON("<?=getenv("SCRIPT_NAME")?>/#{@geturl({op:"i"})}",(a) =>
 				for _ in a.value.sort((a,b) -> String.naturalCompare(a[key],b[key]))
-					((a) ->
+					((a) =>
 						$("#menu").append(
 							$("#menu .cloak")
 							.clone(1)
 							.prop("class","book")
-							.find(".thumbnail").css("background-image","url(\"<?=getenv("SCRIPT_NAME")?>/#{nemui.getimg(a.filename,{op:"m"})}\")").end()
+							.find(".thumbnail").css("background-image","url(\"<?=getenv("SCRIPT_NAME")?>/#{@geturl(a.filename,{op:"m"})}\")").end()
 							.find(".title span").html(a.t).end()
 							.find(".author span").html(a.a).end()
 							.find(".mtime span").html("#{(new Date(a.m * 1000)).getMonth()}/#{(new Date(a.m * 1000)).getDay()}").end()
-							.click(() -> load(manga = a.filename))
+							.click(() => @volume.open(a.filename))
 						)
 					)(_)
 			)
@@ -296,15 +403,176 @@ index = 0
 					$(@).hide()
 			)
 		sort:(key = "filename",order) ->
-			console.log("a")
 			$("#menu .book").sort((a,b) -> String.naturalCompare($(a).find(".title span").html(),$(b).find(".title span").html())).each(->
 				$(@).appendTo("#menu")
 			)
-	)()
-	getimg:(a...,b) ->
-		return("#{a.map(encodeURIComponent).join("/")}?#{("#{k}=#{v}" for k,v of b).join("&")}")
-)()
+	volume:new class extends @
+		open:(com) ->
+			$(".volume").remove()
+		
+			$.getJSON("<?=getenv("SCRIPT_NAME")?>/#{@geturl(com,{op:"i"})}",(a) =>
+				for _ in a.value
+					((vol) =>
+						$("#book").append(
+							$("#book .cloak")
+							.clone(1)
+							.prop("class","volume")
+							.find(".thumbnail").css("background-image","url(\"<?=getenv("SCRIPT_NAME")?>/#{@geturl(com,vol,{op:"m"})}\")").end()
+							.find("span:eq(0)").html(vol).end()
+							.click(() => @reader.open(com,vol))
+						)
+					)(_.filename)
+			)
+		
+			if (@ui.b & C_MODE_MASK) == (C_MODE_PHONE|C_MODE_VERTICAL)
+				$("#main").animate({"left":-$("#menu").width()},500,"easeOutCubic")
+				@navi.change("slide")
+		
+			@url.set("/#{com}/")
+	reader:new class extends @
+		open:(@com,@vol,i = 0) ->
+			$.getJSON("<?=getenv("SCRIPT_NAME")?>/#{@geturl(@com,@vol,{op:"i"})}",(a) =>
+				@url.set("/#{@com}/#{@vol}/")
 
+				@list = a.value.sort((a,b) -> String.naturalCompare(a.filename,b.filename))
+
+				@preference.close()
+				$("#frame")
+				.css("left","")
+				.css("top","")
+				.css("width","")
+				.css("height","")
+				.show(0,-> $(@).focus())
+				.animate({"opacity":1.000},500,"easeOutCubic")
+
+				$("#frame,#navi")
+				.addClass("img")
+				.removeClass("vid")
+				navi.change("img")
+
+				@jump(i);
+			)
+		jump:(i) ->
+			if 0 <= i < @list.length * (!!(@preference.b & F_OPTION_SPLIT) + 1)
+				$("#frame img:NOT(.cloak)#{(":NOT(##{_})" for _ in [(i - C_CACHE_BEHIND)..(i + C_CACHE_AHEAD)]).join("")}").remove()
+
+				switch !!(@preference.b & F_OPTION_SLIDE) * (i - @index)
+					when 1
+						@make(i - 1)
+						.stop()
+						.css("left","0%")
+						.animate({left:"100%"},250,"easeOutCubic",-> $(@).hide())
+						@make(i + 0)
+						.stop()
+						.css("left","-100%")
+						.show()
+						.animate({left:"0"},250,"easeOutCubic")
+						@make(i + 1).stop().hide()
+						@make(i + 2).stop().hide()
+						@make(i + 3).stop().hide()
+					when -1
+						@make(i - 1).stop().hide()
+						@make(i + 0)
+						.stop()
+						.css("left","100%")
+						.show()
+						.animate({left:"0"},250,"easeOutCubic")
+						@make(i + 1)
+						.stop()
+						.css("left","0%")
+						.animate({left:"-100%"},250,"easeOutCubic",-> $(@).hide())
+						@make(i + 2).stop().hide()
+						@make(i + 3).stop().hide()
+					else
+						@make(i - 1).hide()
+						@make(i + 0).show()
+						@make(i + 1).hide()
+						@make(i + 2).hide()
+						@make(i + 3).hide()
+				@index = i
+
+				@url.set("##{@index}")
+			else if i >= @list.length
+				@close()
+				if @preference.b & F_OPTION_SEQUENTIAL
+					if $(".volume:contains(#{@vol}) + .volume").size()
+						$("#frame")
+						.queue(->
+							@reader.open(nemui.reader.com,$(".volume:contains(#{nemui.reader.vol}) + .volume").find("span").html(),0)
+							$(@).dequeue();
+						)
+			else
+				@close()
+		make:(i) ->
+			if 0 <= i < @list.length * (!!(@preference.b & F_OPTION_SPLIT) + 1)
+				if $("##{i}").size()
+					console.log("? Image #{i} cached.")
+				else
+					$("#frame").append(
+						$("<img>")
+						.prop("src",C_IMG_NULL)
+						.prop("id",i)
+						.css("background-image","url(\"<?=getenv("SCRIPT_NAME")?>/#{
+							@geturl(
+								@com
+								@vol
+								if @preference.b & F_OPTION_REVERSE
+									@list[list.length - 1 - parseInt(i / (!!(@preference.b & F_OPTION_SPLIT) + 1))].filename
+								else
+									@list[parseInt(i / (!!(@preference.b & F_OPTION_SPLIT) + 1))].filename
+								{
+									"op":"g"
+									"s":@preference.b & F_OPTION_SPLIT
+									"p":i % 2
+									"w":document.body.clientWidth
+									"h":document.body.clientHeight
+									"c":@preference.b & F_OPTION_COMPRESS
+								}
+							)}\")")
+					)
+					console.log("? Image #{i} maked.")
+				return $("##{i}")
+			else
+				return $("##{i}")
+		close:(i) ->
+			if (@ui.b & C_MODE_MASK) == (C_MODE_PHONE|C_MODE_VERTICAL)
+				navi.change("slide")
+			else
+				navi.change("none")
+		
+			if !i
+				$("#frame")
+				#.animate({"opacity":0},500,"easeOutCubic",-> $(@).hide())
+				.animate({"opacity":0},500,"easeOutCubic")
+				.hide(0,-> $("#frame *").remove())
+		
+			else
+				$("#frame")
+				#.animate({"opacity":0},500,"easeOutCubic",-> $(@).hide())
+				.animate({"left":"100%","top":"100%","width":0,"height":0,"opacity":0},500,"easeOutCubic")
+				.hide(0,-> $("#frame *").remove())
+		
+				$("#conf").append(
+					$("#conf .cloak")
+					.clone(1)
+					.removeClass("cloak")
+					.find("img")
+						.css("background-image",
+							$("#frame img:visible").css("background-image").replace(/op=./,"op=m")
+						)
+						.prop("alt",[@com,@vol,@index].join("/"))
+						.click((a) =>
+							m = $(a.target).prop("alt").split("/")
+							@volume.open(m[0])
+							@reader.open(m[0],m[1],parseInt(m[2]))
+							$(a.target).parent().remove()
+						)
+						.end()
+				)
+				console.log($("#frame img:visible").css("background-image"));
+			@url.set("/#{@com}/","#")
+	geturl:(a...,b) ->
+		return("#{a.map(encodeURIComponent).join("/")}?#{("#{k}=#{v}" for k,v of b).join("&")}")
 
 $(window).load(() ->
 	$(@).on("orientationchange",() ->
@@ -324,17 +592,17 @@ $(window).load(() ->
 
 	$("#frame")
 	.prop("tabindex",0)
-	.bind("click",->
-		jump(index + 1)
-	)
-	.bind("contextmenu",-> jump(index - 1) && false)
+#	.bind("click",->
+#		nemui.reader.jump(nemui.reader.index + 1)
+#	)
+	.bind("contextmenu",-> !!(nemui.reader.jump(nemui.reader.index - 1) && false))
 	.bind("mousedown",() -> $(@).trigger("touchstart"))
 	.bind("mouseup",() -> $(@).trigger("touchend"))
 	.bind("touchstart",(a) ->
 		x = a.clientX
 		y = a.clientY
 
-		id = setTimeout("close()",500)
+		id = setTimeout("nemui.reader.close(1)",500)
 	)
 	.bind("touchend",(a) ->
 		clearTimeout(id)
@@ -354,78 +622,54 @@ $(window).load(() ->
 	)
 	.bind("mousewheel",(a) ->
 		if a.originalEvent.wheelDelta < 0
-			jump(index + 1)
+			nemui.reader.jump(nemui.reader.index + 1)
 		else
-			jump(index - 1)
+			nemui.reader.jump(nemui.reader.index - 1)
 	)
 	.bind("DOMMouseScroll",(a) ->
 		if a.originalEvent.detail > 0
-			jump(index + 1)
+			nemui.reader.jump(nemui.reader.index + 1)
 		else
-			jump(index - 1)
+			nemui.reader.jump(nemui.reader.index - 1)
 	)
 	.keydown((a) ->
 		switch a.keyCode
 			when 0x25,0x22,0x6b,0x41,0x57
-				jump(index + 1)
+				nemui.reader.jump(nemui.reader.index + 1)
 			when 0x27,0x21,0x6d,0x44,0x53
-				jump(index - 1)
+				nemui.reader.jump(nemui.reader.index - 1)
 			when 0x23
-				jump(list.length - 1)
+				nemui.reader.jump(nemui.reader.list.length * (!!(nemui.preference.b & F_OPTION_SPLIT) + 1) - 1)
 			when 0x24
-				jump(0)
+				nemui.reader.jump(0)
 			when 0x1b
-				close(1)
+				nemui.reader.close(1)
 			else
 				console.log("keyCode 0x#{a.keyCode.toString(16)} (#{a.keyCode})")
 	)
 	.swipe(
-		swipe:() -> jump(index + 1)
-		swipeLeft:() -> jump(index - 1)
+		click:() -> nemui.reader.jump(nemui.reader.index + 1)
+		swipeRight:() -> nemui.reader.jump(nemui.reader.index + 1)
+		swipeLeft:() -> nemui.reader.jump(nemui.reader.index - 1)
 	)
 #	.touchwipe(
-#		wipeLeft:() -> jump(index - 1)
-#		wipeRight:() -> jump(index + 1)
+#		wipeLeft:() -> nemui.reader.jump(nemui.reader.index - 1)
+#		wipeRight:() -> nemui.reader.jump(nemui.reader.index + 1)
 #	)
 
 	$("#preference")
-	#.prop("tabindex",1)
+	#.prop("tabnemui.reader.index",1)
 	.blur(() -> closepreference())
 
 	nemui.ui.draw()
 	nemui.menu.draw()
 
 	m = "<?=getenv("PATH_INFO")?>".replace(/^\//,"").split("/")
-	i = parseInt(location.hash.replace(/^#/,""))
 	if m[0]?.length > 0
-		load(manga = m[0])
+		nemui.volume.open(m[0])
 	if m[1]?.length > 0
-		read(null,m[1],i)
+		nemui.reader.open(m[0],m[1],parseInt(location.hash.replace(/^#/,"")))
 )
-
-@load = (c) ->
-	$(".volume").remove()
-
-	$.getJSON("<?=getenv("SCRIPT_NAME")?>/#{encodeURIComponent(c)}/?op=i",(a) ->
-		for _ in a.value
-			((a) ->
-				$("#book").append(
-					$("#book .cloak")
-					.clone(1)
-					.prop("class","volume")
-					.find(".thumbnail").css("background-image","url(\"<?=getenv("SCRIPT_NAME")?>/#{encodeURIComponent(c)}/#{encodeURIComponent(a)}/?op=m\")").end()
-					.find("span:eq(0)").html(_.filename).end()
-					.click(() -> read(null,a))
-				)
-			)(_.filename)
-	)
-
-	if (preference.b & C_MODE_MASK) == (C_MODE_PHONE|C_MODE_VERTICAL)
-		$("#main").animate({"left":-$("#menu").width()},500,"easeOutCubic")
-		$("#navi .a").show().animate({"opacity":1.000},500,"easeOutCubic")
-
-	console.log("#{c}")
-	history.replaceState(null,null,"#{location.protocol}//#{location.hostname}/#{c}/#{location.search}")
 
 @back = () ->
 	$("#main").animate({"left":0},500,"easeOutCubic")
@@ -453,7 +697,7 @@ $(window).load(() ->
 		history.replaceState(null,null,"#{location.protocol}//#{location.hostname}/#{c}/#{n}/#{location.search}##{i}")
 
 @open = (a) ->
-	preference.close()
+	nemui.preference.close()
 	$("#frame")
 	.css("left","")
 	.css("top","")
@@ -472,135 +716,6 @@ $(window).load(() ->
 		.addClass("img")
 		.removeClass("vid")
 		navi.change("img")
-
-@close = (a) ->
-	navi.change("none")
-
-	if !a
-		$("#frame")
-		#.animate({"opacity":0},500,"easeOutCubic",-> $(@).hide())
-		.animate({"opacity":0},500,"easeOutCubic")
-		.hide(0,-> $("#frame *").remove())
-
-	else
-		$("#frame")
-		#.animate({"opacity":0},500,"easeOutCubic",-> $(@).hide())
-		.animate({"left":"100%","top":"100%","width":0,"height":0,"opacity":0},500,"easeOutCubic")
-		.hide(0,-> $("#frame *").remove())
-
-		$("#conf").append(
-			$("#conf .cloak")
-			.clone(1)
-			.removeClass("cloak")
-			.find("img")
-				.css("background-image",
-					$("#frame img:visible").css("background-image").replace(/op=./,"op=m")
-				)
-				.prop("alt",[manga,volume,index].join("/"))
-				.click(() ->
-					m = $(@).prop("alt").split("/")
-					load(manga = m[0])
-					read(null,m[1],parseInt(m[2]))
-					$(@).parent().remove()
-				)
-				.end()
-		)
-		console.log($("#frame img:visible").css("background-image"));
-	history.replaceState(null,null,"#{location.protocol}//#{location.hostname}/#{manga}/#{location.search}")
-
-
-@make = (i = index) ->
-	if 0 <= i < list.length
-		if $("##{i}").size()
-			console.log("? Image #{i} cached.")
-		else
-			$("#frame").append(
-				$("<img>")
-				.prop("src",C_IMG_NULL)
-				.prop("id",i)
-				.css("background-image","url(\"<?=getenv("SCRIPT_NAME")?>/#{
-					nemui.getimg(
-						manga
-						volume
-						if preference.b & F_OPTION_REVERSE
-							list[list.length - 1 - parseInt(i / (!!(preference.b & F_OPTION_SPLIT) + 1))].filename
-						else
-							list[parseInt(i / (!!(preference.b & F_OPTION_SPLIT) + 1))].filename
-						{
-							"op":"g"
-							"s":preference.b & F_OPTION_SPLIT
-							"p":i % 2
-							"w":document.body.clientWidth
-							"h":document.body.clientHeight
-							"c":preference.b & F_OPTION_COMPRESS
-						}
-					)}\")")
-			)
-			console.log("? Image #{i} maked.")
-		return $("##{i}")
-	else
-		return $("##{i}")
-
-@jump = (i) ->
-	if list?
-		if 0 <= i < list.length
-			$("#frame img:NOT(.cloak)#{(":NOT(##{_})" for _ in [(i - C_CACHE_BEHIND)..(i + C_CACHE_AHEAD)]).join("")}").remove()
-
-			if preference.b & F_OPTION_SLIDE
-				switch i - index
-					when 1
-						make(i - 1)
-						.stop()
-						.css("left","0%")
-						.animate({left:"100%"},333,"easeOutCubic",-> $(@).hide())
-						make(i + 0)
-						.stop()
-						.css("left","-100%")
-						.show()
-						.animate({left:"0"},333,"easeOutCubic")
-						make(i + 1).stop().hide()
-						make(i + 2).stop().hide()
-						make(i + 3).stop().hide()
-					when -1
-						make(i - 1).stop().hide()
-						make(i + 0)
-						.stop()
-						.css("left","100%")
-						.show()
-						.animate({left:"0"},333,"easeOutCubic")
-						make(i + 1)
-						.stop()
-						.css("left","0%")
-						.animate({left:"-100%"},333,"easeOutCubic",-> $(@).hide())
-						make(i + 2).stop().hide()
-						make(i + 3).stop().hide()
-					else
-						make(i - 1).hide()
-						make(i + 0).show()
-						make(i + 1).hide()
-						make(i + 2).hide()
-						make(i + 3).hide()
-			else
-				make(i - 1).hide()
-				make(i + 0).show()
-				make(i + 1).hide()
-				make(i + 2).hide()
-				make(i + 3).hide()
-			index = i
-		else if i >= list.length
-			close()
-			if preference.b & F_OPTION_SEQUENTIAL
-				if $(".volume:contains(#{volume}) + .volume").size()
-					$("#frame")
-					.queue(->
-						read(null,$(".volume:contains(#{volume}) + .volume").find("span").html(),0)
-						$(@).dequeue();
-					)
-		else
-			close()
-
-	history.replaceState(null,null,"#{location.protocol}//#{location.hostname}/#{manga}/#{volume}/#{location.search}##{index}")
-	1
 
 @player = () ->
 	$("#frame").append(
@@ -625,97 +740,6 @@ $(window).load(() ->
 	a.webkitRequestFullScreen?()
 	setTimeout("$(\"video\")[0].load();alert(1)",1000);
 	###
-
-@preference = new (class
-	constructor:(@b = 0) ->
-		for param,v of {
-			"Display Mode":
-				"Desktop":C_MODE_PC
-				"Notebook":C_MODE_NOTEBOOK
-				"Phone":C_MODE_PHONE
-				"Tablet":C_MODE_TABLET
-			"Show Thumbnails":
-				"":F_OPTION_THUMBNAIL
-			"Compression/Minimize":
-				"":F_OPTION_COMPRESS
-			"Horizontal Split":
-				"":F_OPTION_SPLIT
-			"Sequential Read":
-				"":F_OPTION_SEQUENTIAL
-			"Reverse Read":
-				"":F_OPTION_REVERSE
-			"Slide Effect":
-				"":F_OPTION_SLIDE
-		}
-			mask = Object.keys(v).reduce(((a,b) -> a | v[b]),0)
-			console.log(mask)
-			for k,b of v
-				$("#preference").append(
-					$("#preference .cloak")
-					.clone(1)
-					.removeClass("cloak")
-					.find(".label:eq(0)").html(param).end()
-					.find(".label:eq(1)").html(k).end()
-					.find("input")
-						.prop("type",(["radio","checkbox"])[!(Object.keys(v).length - 1) + 0])
-						.prop("name",mask)
-						.prop("value",b)
-						.prop("checked",@b & b)
-						.change(=> @update(arguments...))
-						.end()
-					.find(".input").click(-> $(@).parents(".field").find("input").click()).end()
-				)
-	open:() ->
-		$("#preference")
-		.focus()
-		.show()
-		.animate({"opacity":0.900},500,"easeOutCubic")
-	close:() ->
-		$("#preference")
-		.animate({"opacity":0.000},500,"easeOutCubic",-> $(@).hide())
-	toggle:() ->
-		if $("#preference").css("display") == "none"
-			@open()
-		else
-			@close()
-	update:(a) ->
-		console.log("update")
-		if $(a.target).prop("checked")
-			@b = @b & ~$(a.target).prop("name") | $(a.target).prop("value")
-		else
-			@b = @b & ~$(a.target).prop("name")
-		nemui.ui.draw(@b)
-		history.replaceState(null,null,"#{location.protocol}//#{location.hostname}#{location.pathname}?b=#{@b}")
-)((location.search.match("b=(\\d+)") || [0,F_OPTION_THUMBNAIL|F_OPTION_SEQUENTIAL])[1])
-
-@navi = new (class
-	constructor:() ->
-		@change("none")
-	change:(a) ->
-		$("#navi")
-		.removeClass("none")
-		.removeClass("img")
-		.removeClass("vid")
-		.addClass(a)
-
-		$("#navi div:NOT(.#{a})")
-		.hide()
-		$("#navi div.#{a}:NOT(.cloak)")
-		.prop("opacity",0)
-		.show()
-		.animate({"opacity":1.000},500,"easeOutCubic")
-)()
-
-@url = new (class
-	constructor:() ->
-		@url = [
-			location.protocol
-			location.hostname
-			location.pathname
-			location.search
-			location.hash
-		]
-)((location.search.match("b=(\\d+)") || [0,F_OPTION_THUMBNAIL|F_OPTION_SEQUENTIAL])[1])
 </script>
 <style id="common" type="text/css">
 .valign {
@@ -788,7 +812,7 @@ html, body {
 	border-radius: 0.5em;
 }
 
-#navi.none span,#nabi.img span{
+#navi.none span,#navi.slide span,#nabi.img span{
 	background-color: #ffffff;
 	border: 1px #000000 solid;
 }
@@ -958,7 +982,7 @@ html, body {
 	height: 100%;
 	position: absolute;
 //	position: relative;
-//	-webkit-touch-callout:none;
+	-webkit-touch-callout:none;
 //	user-select: none;
 //	-webkit-user-select: none;
 }
@@ -1203,10 +1227,10 @@ body {
 }
 
 #menu {
-	width: 40%;
+	width: 60%;
 }
 #book {
-	width: 60%;
+	width: 40%;
 }
 
 #frame.vid {
@@ -1294,11 +1318,11 @@ body {
 	<div class="a vid">
 		<span class="valign" onclick="hogehoge()">&nbsp;×&nbsp;</span>
 	</div>
-	<div class="a none img cloak">
+	<div class="a slide img">
 		<span class="valign" onclick="back()">&lt;&nbsp;Back</span>
 	</div>
-	<div class="c none img">
-		<span class="valign" onclick="preference.toggle()">Preference</span>
+	<div class="c none slide img">
+		<span class="valign" onclick="nemui.preference.toggle()">Preference</span>
 	</div>
 	<!--
 	<div class="b">
