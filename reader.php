@@ -499,9 +499,9 @@
 				if @preference.b & F_OPTION_SEQUENTIAL
 					if $(".volume:contains(#{@vol}) + .volume").size()
 						$("#frame")
-						.queue(->
-							@reader.open(nemui.reader.com,$(".volume:contains(#{nemui.reader.vol}) + .volume").find("span").html(),0)
-							$(@).dequeue();
+						.queue(=>
+							@reader.open(@reader.com,$(".volume:contains(#{nemui.reader.vol}) + .volume").find("span").html(),0)
+							$("#frame").dequeue();
 						)
 			else
 				@close()
@@ -541,8 +541,8 @@
 				@navi.change("slide")
 			else
 				@navi.change("none")
-		
-			if !i
+
+			if @index == 0 || @index == @list.length * (!!(@preference.b & F_OPTION_SPLIT) + 1) - 1
 				$("#frame")
 				#.animate({"opacity":0},500,"easeOutCubic",-> $(@).hide())
 				.animate({"opacity":0},500,"easeOutCubic")
@@ -650,6 +650,7 @@ $(window).load(() ->
 	)
 	.swipe(
 		click:(ev) ->
+			console.log("click")
 			switch ev.button
 				when 0
 					nemui.reader.jump(nemui.reader.index + 1)
@@ -661,7 +662,12 @@ $(window).load(() ->
 					alert("! Unknown button #{ev.button}.")
 		swipeRight:() -> nemui.reader.jump(nemui.reader.index + 1)
 		swipeLeft:() -> nemui.reader.jump(nemui.reader.index - 1)
-		hold:() -> nemui.reader.close(1)
+		hold:() ->
+			nemui.reader.close()
+			$(@).trigger("MSPointerCancel")
+			$(@).trigger("pointercancel")
+			$(@).trigger("touchcancel")
+		doubleTapThreshold:100
 	)
 #	.touchwipe(
 #		wipeLeft:() -> nemui.reader.jump(nemui.reader.index - 1)
