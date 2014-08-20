@@ -388,7 +388,7 @@
 							.find(".thumbnail").css("background-image","url(\"<?=getenv("SCRIPT_NAME")?>/#{@geturl(a.filename,{op:"m"})}\")").end()
 							.find(".title span").html(a.t).end()
 							.find(".author span").html(a.a).end()
-							.find(".mtime span").html("#{(new Date(a.m * 1000)).getMonth()}/#{(new Date(a.m * 1000)).getDay()}").end()
+							.find(".mtime span").html("#{(new Date(a.m * 1000)).getMonth() + 1}/#{(new Date(a.m * 1000)).getDate()}").end()
 							.click(() => @volume.open(a.filename))
 						)
 					)(_)
@@ -658,6 +658,8 @@ $(window).load(() ->
 					nemui.reader.jump(nemui.reader.index - 1)
 				when undefined
 					nemui.reader.jump(nemui.reader.index + 1)
+				when 1
+					0
 				else
 					alert("! Unknown button #{ev.button}.")
 		swipeRight:() -> nemui.reader.jump(nemui.reader.index + 1)
