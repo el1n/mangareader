@@ -903,6 +903,12 @@ html, body {
 	border: 1px #ffccd4 solid;
 }
 
+.sort div {
+	float: left;
+	width: 25%;
+	height: 100%;
+}
+
 .sort span:hover {
 	cursor: pointer;
 }
@@ -1373,9 +1379,18 @@ body {
 			</label>
 		</div>
 		<div class="sort">
-			<span class="valign" onClick="nemui.menu.draw('filename')">N</span>
-			<span class="valign" onClick="nemui.menu.draw('a')">A</span>
-			<span class="valign" onClick="nemui.menu.draw('m')">M</span>
+			<div>
+				<span class="valign" onClick="nemui.menu.draw('filename')">N</span>
+			</div>
+			<div>
+				<span class="valign" onClick="nemui.menu.draw('a')">A</span>
+			</div>
+			<div>
+				<span class="valign" onClick="nemui.menu.draw('m')">M</span>
+			</div>
+			<div>
+				<span class="valign" onClick="nemui.menu.draw('m')">D</span>
+			</div>
 		</div>
 		<div class="cloak">
 			<img class="thumbnail">
