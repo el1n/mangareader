@@ -315,6 +315,8 @@
 					"":F_OPTION_REVERSE
 				"Slide Effect":
 					"":F_OPTION_SLIDE
+				"sensor test":
+					"":F_OPTION_FREEFINGER
 			}
 				mask = Object.keys(v).reduce(((a,b) -> a | v[b]),0)
 				console.log(mask)
