@@ -175,6 +175,7 @@
 <!DOCTYPE HTML>
 <html>
 <head>
+<title></title>
 <meta http-equiv="Content-Type" content="text/html;charset=UTF-8">
 <meta name="viewport" content="user-scalable=no">
 <script src="//cdnjs.cloudflare.com/ajax/libs/jquery/1.11.1/jquery.min.js" type="text/javascript"></script>
@@ -200,6 +201,7 @@
 @F_OPTION_REVERSE = 0x00100000
 @F_OPTION_SLIDE = 0x00200000
 @F_OPTION_SEQUENTIAL = 0x00400000
+@F_OPTION_FREEFINGER = 0x00800000
 @C_CACHE_AHEAD = 3
 @C_CACHE_BEHIND = 1
 @C_IMG_NULL = $("<canvas width=1 height=1 />")[0].toDataURL()
@@ -454,6 +456,8 @@
 
 				@jump(i);
 			)
+			if @preference.b & F_OPTION_FREEFINGER
+				window.addEventListener("devicemotion",@sensor)
 		jump:(i) ->
 			if 0 <= i < @list.length * (!!(@preference.b & F_OPTION_SPLIT) + 1)
 				$("#frame img:NOT(.cloak)#{(":NOT(##{_})" for _ in [(i - C_CACHE_BEHIND)..(i + C_CACHE_AHEAD)]).join("")}").remove()
@@ -494,6 +498,8 @@
 				@index = i
 
 				@url.set("##{@index}")
+			else if $("#frame").queue().length != 0
+				console.log("dup jump")
 			else if i >= @list.length
 				@close()
 				if @preference.b & F_OPTION_SEQUENTIAL
@@ -573,6 +579,24 @@
 				)
 				console.log($("#frame img:visible").css("background-image"));
 			@url.set("/#{@com}/","#")
+			if @preference.b & F_OPTION_FREEFINGER
+				window.removeEventListener("devicemotion",@sensor)
+		sensor:(a) =>
+			$("title").text(@dir)
+			if a.acceleration.x > 4 && @dir != 2
+				if @dir == -1
+					nemui.reader.jump(nemui.reader.index - 1)
+					@dir = 2
+				else
+					@dir = 1
+			else if a.acceleration.x < -4 && @dir != 2
+				if @dir == 1
+					nemui.reader.jump(nemui.reader.index + 1)
+					@dir = 2
+				else
+					@dir = -1
+			else if -1 <= a.acceleration.x <= 1
+				@dir = 0
 	geturl:(a...,b) ->
 		return("#{a.map(encodeURIComponent).join("/")}?#{("#{k}=#{v}" for k,v of b).join("&")}")
 
