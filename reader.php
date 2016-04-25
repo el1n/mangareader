@@ -38,8 +38,21 @@
 				$r = array(
 					"c" =>200,
 					"value" =>array_map(
-						function($a){
+						function($a) use($dir){
 							preg_match_all("/(?:^(.+?) |(\[(.*?)\]))(?=(?:\[[^\[\]]*?\])*?$)/",$a,$m);
+
+							$r = new Imagick();
+							if(is_file($dir."/".$a)){
+								switch(strtolower(pathinfo($a,PATHINFO_EXTENSION))){
+									case "bmp":
+									case "gif":
+									case "jpeg":
+									case "jpg":
+									case "png":
+										$r->pingImage($dir."/".$a);
+										break;
+								}
+							}
 
 							return(array(
 								filename =>$a,
@@ -48,6 +61,8 @@
 								w =>$m[3][1],
 								i =>$m[3][2] ? $m[3][2] : $m[3][1],
 								t =>$m[1][0],
+								x =>$r->getNumberImages() ? $r->getImageWidth() : -1,
+								y =>$r->getNumberImages() ? $r->getImageHeight() : -1,
 								a =>implode(" / ",array_values(array_filter(array($m[3][1],$m[3][2],$m[3][3]),strlen)))
 							));
 						},
@@ -202,6 +217,7 @@
 @F_OPTION_SLIDE = 0x00200000
 @F_OPTION_SEQUENTIAL = 0x00400000
 @F_OPTION_FREEFINGER = 0x00800000
+@F_OPTION_VERTICAL_SPLIT_AUTO = 0x01000000
 @C_CACHE_AHEAD = 3
 @C_CACHE_BEHIND = 1
 @C_IMG_NULL = $("<canvas width=1 height=1 />")[0].toDataURL()
@@ -585,13 +601,13 @@
 				window.removeEventListener("devicemotion",@sensor)
 		sensor:(a) =>
 			$("title").text(@dir)
-			if a.acceleration.x > 4 && @dir != 2
+			if a.acceleration.x > 3 && @dir != 2
 				if @dir == -1
 					nemui.reader.jump(nemui.reader.index - 1)
 					@dir = 2
 				else
 					@dir = 1
-			else if a.acceleration.x < -4 && @dir != 2
+			else if a.acceleration.x < -2 && @dir != 2
 				if @dir == 1
 					nemui.reader.jump(nemui.reader.index + 1)
 					@dir = 2
