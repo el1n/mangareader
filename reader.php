@@ -37,11 +37,12 @@
 #				);
 				$r = array(
 					"c" =>200,
-					"value" =>array_map(
-						function($a) use($dir){
+					"value" =>array()
+				);
+				foreach(array_values(preg_grep("/^(?!\\.).*?(?<!\.zip)$/",scandir($dir))) as $a){
 							preg_match_all("/(?:^(.+?) |(\[(.*?)\]))(?=(?:\[[^\[\]]*?\])*?$)/",$a,$m);
 
-							$r = new Imagick();
+							$im = new Imagick();
 							if(is_file($dir."/".$a)){
 								switch(strtolower(pathinfo($a,PATHINFO_EXTENSION))){
 									case "bmp":
@@ -49,26 +50,55 @@
 									case "jpeg":
 									case "jpg":
 									case "png":
-										$r->pingImage($dir."/".$a);
+										$im->pingImage($dir."/".$a);
 										break;
 								}
 							}
 
-							return(array(
-								filename =>$a,
-#								m =>filemtime($dir."/".$a)
-								m =>filemtime(BOOKSHELF.getenv("PATH_INFO")."/".$a),
-								w =>$m[3][1],
-								i =>$m[3][2] ? $m[3][2] : $m[3][1],
-								t =>$m[1][0],
-								x =>$r->getNumberImages() ? $r->getImageWidth() : -1,
-								y =>$r->getNumberImages() ? $r->getImageHeight() : -1,
-								a =>implode(" / ",array_values(array_filter(array($m[3][1],$m[3][2],$m[3][3]),strlen)))
-							));
-						},
-						array_values(preg_grep("/^(?!\\.).*?(?<!\.zip)$/",scandir($dir)))
-					)
-				);
+							if(!$im->getNumberImages()){
+								array_push($r["value"],array(
+									filename =>$a,
+	#								m =>filemtime($dir."/".$a)
+									m =>filemtime(BOOKSHELF.getenv("PATH_INFO")."/".$a),
+									w =>$m[3][1],
+									i =>$m[3][2] ? $m[3][2] : $m[3][1],
+									t =>$m[1][0],
+									a =>implode(" / ",array_values(array_filter(array($m[3][1],$m[3][2],$m[3][3]),strlen)))
+								));
+							}else{
+								if($im->getImageWidth() <= $im->getImageHeight())
+									array_push($r["value"],array(
+										filename =>$a,
+		#								m =>filemtime($dir."/".$a)
+										m =>filemtime(BOOKSHELF.getenv("PATH_INFO")."/".$a),
+										w =>$m[3][1],
+										i =>$m[3][2] ? $m[3][2] : $m[3][1],
+										t =>$m[1][0],
+										a =>implode(" / ",array_values(array_filter(array($m[3][1],$m[3][2],$m[3][3]),strlen))),
+										s =>""
+									));
+								else{
+									array_push($r["value"],array(
+										filename =>$a,
+										m =>filemtime(BOOKSHELF.getenv("PATH_INFO")."/".$a),
+										w =>$m[3][1],
+										i =>$m[3][2] ? $m[3][2] : $m[3][1],
+										t =>$m[1][0],
+										a =>implode(" / ",array_values(array_filter(array($m[3][1],$m[3][2],$m[3][3]),strlen))),
+										s =>"=1&p=0"
+									));
+									array_push($r["value"],array(
+										filename =>$a,
+										m =>filemtime(BOOKSHELF.getenv("PATH_INFO")."/".$a),
+										w =>$m[3][1],
+										i =>$m[3][2] ? $m[3][2] : $m[3][1],
+										t =>$m[1][0],
+										a =>implode(" / ",array_values(array_filter(array($m[3][1],$m[3][2],$m[3][3]),strlen))),
+										s =>"=1&p=1"
+									));
+								}
+							}
+				}
 			}else{
 				$r = array(
 					"c" =>403
@@ -150,10 +180,13 @@
 					}else if($_GET["p"] == 1){
 						$r->cropImage($r->getImageWidth() / 2,$r->getImageHeight(),0,0);
 					}
-				if($_GET["c"])
+				if($_GET["c"]){
+					$r->modulateImage(100,0,100);
 					$r->thumbnailImage($_GET["w"] / 2,$_GET["h"] / 2,1);
+					$r->setImageDepth(4);
 					$r->setImageFormat("jpeg");
-					$r->setImageCompressionQuality(80);
+					$r->setImageCompressionQuality(75);
+				}
 			}else{
 				$r = new Imagick();
 				$r->newImage(1,1,"#000000");
@@ -323,8 +356,8 @@
 					"":F_OPTION_THUMBNAIL
 				"Compression/Minimize":
 					"":F_OPTION_COMPRESS
-				"Horizontal Split":
-					"":F_OPTION_SPLIT
+#				"Horizontal Split":
+#					"":F_OPTION_SPLIT
 				"Sequential Read":
 					"":F_OPTION_SEQUENTIAL
 				"Reverse Read":
@@ -548,8 +581,9 @@
 									@list[parseInt(i / (!!(@preference.b & F_OPTION_SPLIT) + 1))].filename
 								{
 									"op":"g"
-									"s":@preference.b & F_OPTION_SPLIT
-									"p":i % 2
+#									"s":@preference.b & F_OPTION_SPLIT
+#									"p":i % 2
+									"s":@list[parseInt(i / (!!(@preference.b & F_OPTION_SPLIT) + 1))].s
 									"w":document.body.clientWidth
 									"h":document.body.clientHeight
 									"c":@preference.b & F_OPTION_COMPRESS
