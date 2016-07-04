@@ -1,4 +1,6 @@
 <?
+	error_reporting(E_ALL & ~E_NOTICE);
+
 	define("BOOKSHELF","../bookshelf");
 
 	define("F_OPTION_THUMBNAIL",0x00010000);
