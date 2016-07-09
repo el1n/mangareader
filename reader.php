@@ -144,7 +144,7 @@
 				}
 				$r->thumbnailImage(100,100,1);
 				$r->setImageFormat("jpeg");
-				$r->setImageCompressionQuality(80);
+				$r->setImageCompressionQuality(66);
 
 				$memcached->set($file,$r->getImageBlob());
 #				switch(pathinfo($file,PATHINFO_EXTENSION)){
