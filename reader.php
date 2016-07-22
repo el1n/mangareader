@@ -178,9 +178,9 @@
 
 				if($_GET["s"])
 					if($_GET["p"] == 0){
-						$r->cropImage($r->getImageWidth() / 2,$r->getImageHeight(),$r->getImageWidth() / 2,0);
+						$r->cropImage($r->getImageWidth() * 0.6,$r->getImageHeight(),0,0);
 					}else if($_GET["p"] == 1){
-						$r->cropImage($r->getImageWidth() / 2,$r->getImageHeight(),0,0);
+						$r->cropImage($r->getImageWidth() * 0.6,$r->getImageHeight(),$r->getImageWidth() * 0.4,0);
 					}
 				if($_GET["c"]){
 					$r->modulateImage(100,0,100);
